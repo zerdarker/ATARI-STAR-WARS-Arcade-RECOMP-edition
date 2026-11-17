@@ -743,6 +743,19 @@ static int save_shot(const char *path)
     GLuint fbo = 0, rb = 0;
     uint8_t *buf;
     int rc = 1;
+    size_t plen = strlen(path);
+
+    if (plen > 4 && !_stricmp(path + plen - 4, ".vec")) {     /* the picture's segments, as text */
+        FILE *f = fopen(path, "w");
+        const ph_frame *fr = &ph_buf[ph_cur];
+        int k;
+        if (!f || ph_cur < 0) { if (f) fclose(f); return 1; }
+        for (k = 0; k < fr->n; k++)
+            fprintf(f, "%.2f %.2f %.2f %.2f %06X %d\n", fr->seg[k].x0, fr->seg[k].y0, fr->seg[k].x1, fr->seg[k].y1,
+                    (unsigned)(fr->seg[k].rgb & 0xFFFFFF), fr->seg[k].intensity);
+        fclose(f);
+        return 0;
+    }
 
     buf = (uint8_t *)malloc((size_t)shot_w * (size_t)shot_h * 3u);
     if (!buf) return 1;
