@@ -25,6 +25,7 @@
 extern "C" {
 #include "c012294.h"
 }
+#include "platform/windows/miniz.h"
 
 #define CPU_HZ      1512000.0
 #define PHASE       0x4841u
@@ -50,8 +51,8 @@ static int load(const char *name, std::vector<uint8_t> &v, size_t want)
     std::string path = std::string(opt.rom_dir) + "\\" + name;
     FILE *f = fopen(path.c_str(), "rb");
     if (!f) {
-        snprintf(err, sizeof err, "cannot open %s\n\nBuild the ROM images first:  python disasm\\gen_from_roms.py "
-                 "(or disasm\\image.py) with a MAME starwars ROM set in roms\\", path.c_str());
+        snprintf(err, sizeof err, "No ROMs found in %s\n\nPut your own MAME 'starwars' ROM set (starwars.zip) "
+                 "in that folder.", opt.rom_dir);
         return 1;
     }
     v.resize(want);
@@ -59,6 +60,64 @@ static int load(const char *name, std::vector<uint8_t> &v, size_t want)
     fclose(f);
     if (n != want) { snprintf(err, sizeof err, "%s is %u bytes, expected %u", path.c_str(), (unsigned)n, (unsigned)want); return 1; }
     return 0;
+}
+
+/* The MAME starwars set (rom_dir\starwars.zip) assembled into the same images
+ * disasm\image.py builds; chips found by CRC, as MAME does.  1 = no zip. */
+static int chip(mz_zip_archive *z, mz_uint32 crc, size_t size, uint8_t *dst)
+{
+    for (mz_uint i = 0; i < mz_zip_reader_get_num_files(z); i++) {
+        mz_zip_archive_file_stat fs;
+        if (mz_zip_reader_file_stat(z, i, &fs) && fs.m_crc32 == crc && fs.m_uncomp_size == size)
+            return mz_zip_reader_extract_to_mem(z, i, dst, size, 0) ? 0 : 1;
+    }
+    return 1;
+}
+
+static int load_zip(void)
+{
+    std::string path = std::string(opt.rom_dir) + "\\starwars.zip";
+    mz_zip_archive z;
+    std::vector<uint8_t> f1(0x4000);
+    int rev = 2, bad;
+    memset(&z, 0, sizeof z);
+    if (!mz_zip_reader_init_file(&z, path.c_str(), 0)) return 1;
+    rom_main.assign(0x10000, 0xFF); rom_snd.assign(0x10000, 0xFF);
+    rom_bank1.resize(0x2000); rom_mb.resize(0x1000); rom_avg.resize(0x100);
+    if (chip(&z, 0x04F1876E, 0x4000, f1.data())) {                 /* 136021-214 (rev 2) */
+        rev = 1;
+        if (chip(&z, 0xE75FF867, 0x4000, f1.data())) rev = 0;       /* 136021-114 (rev 1) */
+    }
+    bad = !rev ||
+          chip(&z, 0xF725E344, 0x2000, &rom_main[0x8000]) || chip(&z, 0xF6DA0A00, 0x2000, &rom_main[0xA000]) ||
+          chip(&z, 0x7E406703, 0x2000, &rom_main[0xC000]) || chip(&z, 0xC7E51237, 0x2000, &rom_main[0xE000]) ||
+          chip(&z, 0x538E7D2F, 0x1000, &rom_main[0x3000]) ||
+          chip(&z, 0xDBF3AEA2, 0x2000, &rom_snd[0x4000]) || chip(&z, 0xE38070A8, 0x2000, &rom_snd[0x6000]) ||
+          chip(&z, 0x810E040E, 0x0400, &rom_mb[0x000]) || chip(&z, 0xAE69881C, 0x0400, &rom_mb[0x400]) ||
+          chip(&z, 0xECF22628, 0x0400, &rom_mb[0x800]) || chip(&z, 0x83FEBFDE, 0x0400, &rom_mb[0xC00]) ||
+          chip(&z, 0x82FC3EB2, 0x0100, rom_avg.data());
+    mz_zip_reader_end(&z);
+    if (bad) {
+        snprintf(err, sizeof err, "%s is not a complete MAME 'starwars' ROM set", path.c_str());
+        return -1;
+    }
+    memcpy(&rom_main[0x6000], f1.data(), 0x2000);
+    memcpy(rom_bank1.data(), f1.data() + 0x2000, 0x2000);
+    memcpy(&rom_snd[0xC000], &rom_snd[0x4000], 0x4000);
+    if (rev != opt.rev) {                                           /* the two bytes rev 1 and 2 differ by */
+        rom_main[0x6164] = opt.rev == 2 ? 0xB0 : 0xB1;
+        rom_main[0x7A7C] = opt.rev == 2 ? 0x9D : 0x9C;
+    }
+    return 0;
+}
+
+/* 16:9: the four cockpit guns are VOFF moves in the vector ROM; +-480 -> +-650
+ * puts them at the edges of the wider picture (same values set_guns.py writes). */
+static void widescreen_guns(void)
+{
+    static const struct { uint16_t at, x; } gun[] = { { 0x341C, 0x028A }, { 0x34B6, 0x028A },
+                                                       { 0x35CE, 0x1D76 }, { 0x3668, 0x1D76 } };
+    for (const auto &g : gun) { rom_main[g.at] = (uint8_t)(g.x >> 8); rom_main[g.at + 1] = (uint8_t)g.x; }
 }
 
 /* ------------------------------------------------------------------ */
@@ -222,10 +281,14 @@ static void on_pass(void)
 int sw_app_init(const sw_app_opts *o)
 {
     opt = *o;
-    if (load(opt.rev == 1 ? "starwars_main_rev1.bin" : "starwars_main_rev2.bin", rom_main, 0x10000) ||
-        load("starwars_bank1.bin", rom_bank1, 0x2000) || load("starwars_sound.bin", rom_snd, 0x10000) ||
-        load("starwars_mathbox.bin", rom_mb, 0x1000) || load("starwars_avgprom.bin", rom_avg, 0x100))
+    int z = load_zip();
+    if (z < 0) return 1;
+    if (z > 0 &&
+        (load(opt.rev == 1 ? "starwars_main_rev1.bin" : "starwars_main_rev2.bin", rom_main, 0x10000) ||
+         load("starwars_bank1.bin", rom_bank1, 0x2000) || load("starwars_sound.bin", rom_snd, 0x10000) ||
+         load("starwars_mathbox.bin", rom_mb, 0x1000) || load("starwars_avgprom.bin", rom_avg, 0x100)))
         return 1;
+    widescreen_guns();
     roms.main_rom = rom_main.data();
     roms.bank1 = rom_bank1.data();
     roms.sound_rom = rom_snd.data();
