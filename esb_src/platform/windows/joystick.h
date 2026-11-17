@@ -158,6 +158,7 @@ void joystick_set_deadzone(int radius);
 int joystick_device_count(void);
 const char *joystick_get_display_name(int index);
 int joystick_is_connected(int index);
+int joystick_has_stick(int index);   // has an X/Y stick (a mouse dock posing as a joystick has not)
 
 #ifdef __cplusplus
 }

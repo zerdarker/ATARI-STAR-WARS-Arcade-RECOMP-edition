@@ -57,6 +57,7 @@ struct di_device
 	size_t extra_ofs[MAX_EXTRA_AXES];   // offsets of the extras in DIJOYSTATE2
 	const char *extra_name[MAX_EXTRA_AXES];   // source axis: "Z", "Rx", "S0"...
 	int has_pov;
+	int has_xy;
 };
 
 static IDirectInput8A *s_di;
@@ -144,13 +145,15 @@ static void setup_descriptor(int d)
 }
 
 // EnumObjects callback: note which optional axes the device exposes.
-struct axis_probe { int z, rx, ry, rz, sliders; };
+struct axis_probe { int x, y, z, rx, ry, rz, sliders; };
 
 static BOOL CALLBACK axis_cb(LPCDIDEVICEOBJECTINSTANCEA obj, LPVOID ref)
 {
 	struct axis_probe *p = (struct axis_probe *)ref;
 
-	if (IsEqualGUID(&obj->guidType, &GUID_ZAxis))       p->z = 1;
+	if (IsEqualGUID(&obj->guidType, &GUID_XAxis))       p->x = 1;
+	else if (IsEqualGUID(&obj->guidType, &GUID_YAxis))  p->y = 1;
+	else if (IsEqualGUID(&obj->guidType, &GUID_ZAxis))  p->z = 1;
 	else if (IsEqualGUID(&obj->guidType, &GUID_RxAxis)) p->rx = 1;
 	else if (IsEqualGUID(&obj->guidType, &GUID_RyAxis)) p->ry = 1;
 	else if (IsEqualGUID(&obj->guidType, &GUID_RzAxis)) p->rz = 1;
@@ -213,6 +216,7 @@ static BOOL CALLBACK enum_cb(LPCDIDEVICEINSTANCEA inst, LPVOID ref)
 	D->num_buttons = ((int)caps.dwButtons < MAX_JOYSTICK_BUTTONS)
 		? (int)caps.dwButtons : MAX_JOYSTICK_BUTTONS;
 	D->has_pov = (caps.dwPOVs > 0) ? 1 : 0;
+	D->has_xy = probe.x && probe.y;
 	D->alive = 1;
 
 	// Map optional axes to extra 1-axis sticks (0..255), each labeled with
@@ -262,9 +266,9 @@ static BOOL CALLBACK enum_cb(LPCDIDEVICEINSTANCEA inst, LPVOID ref)
 	s_num_devices++;
 	*added = 1;
 
-	LOG_INFO("joystick %d registered: %s [%s] (%d buttons, %d extra axes%s)",
+	LOG_INFO("joystick %d registered: %s [%s] (%d buttons, %d extra axes%s%s)",
 		s_num_devices, D->name, D->guid_str, D->num_buttons, D->num_extra,
-		D->has_pov ? ", hat" : "");
+		D->has_pov ? ", hat" : "", D->has_xy ? ", X/Y stick" : ", no X/Y stick: ignored");
 
 	return DIENUM_CONTINUE;
 }
@@ -515,4 +519,10 @@ int joystick_is_connected(int index)
 {
 	if (index < 0 || index >= s_num_devices) return 0;
 	return s_devices[index].alive;
+}
+
+int joystick_has_stick(int index)
+{
+	if (index < 0 || index >= s_num_devices) return 0;
+	return s_devices[index].has_xy;
 }

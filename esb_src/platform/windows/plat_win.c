@@ -518,6 +518,26 @@ static float key_rate = 400.0f;           /* [input] key_rate: counts per second
 static int   invert_pitch;
 static int   autofire_enabled = 1;        /* [input] autofire: held trigger fires repeatedly */
 static float autofire_hz = 10.0f;         /* [input] autofire_hz: salvoes per second while held */
+/* [joystick] controller buttons, numbered as in Windows' game controller panel (0 = none) */
+enum { JB_FIRE_R, JB_FIRE_L, JB_THUMB_R, JB_THUMB_L, JB_COIN, JB_COUNT };
+static const char *const joy_button_key[JB_COUNT] = { "button_fire_r", "button_fire_l", "button_thumb_r", "button_thumb_l", "button_coin" };
+static int joy_button[JB_COUNT] = { 0, 1, 2, 3, 6 };   /* 0-based */
+static char joy_ignore[256];              /* [joystick] ignore: device names to skip, ';'-separated */
+
+static int joy_ignored(int d)
+{
+    const char *name = joystick_get_display_name(d), *p = joy_ignore;
+    while (*p) {
+        char tok[64];
+        size_t n = strcspn(p, ";");
+        if (n > 0 && n < sizeof tok) {
+            memcpy(tok, p, n); tok[n] = '\0';
+            if (strstr(name, tok)) return 1;
+        }
+        p += n + (p[n] == ';');
+    }
+    return 0;
+}
 
 static int plat_init(void)
 {
@@ -601,6 +621,17 @@ static int plat_init(void)
     set_config_float("input", "autofire_hz", autofire_hz);
     capture_enabled = get_config_int("input", "mouse_capture", 1) != 0;
     set_config_int("input", "mouse_capture", capture_enabled);
+
+    for (int f = 0; f < JB_COUNT; f++) {
+        joy_button[f] = get_config_int("joystick", joy_button_key[f], joy_button[f] + 1) - 1;
+        set_config_int("joystick", joy_button_key[f], joy_button[f] + 1);
+    }
+    {
+        char *s = get_config_string("joystick", "ignore", "");
+        snprintf(joy_ignore, sizeof joy_ignore, "%s", s ? s : "");
+        set_config_string("joystick", "ignore", joy_ignore);
+        if (s) free(s);
+    }
 
     if (FAILED(RawInput_Initialize(hWnd))) LOG_ERROR("RawInput_Initialize failed");
     install_joystick();
@@ -816,15 +847,24 @@ void plat_input_poll(plat_inputs *in)
     x = yoke_x + key_x;
     y = yoke_y + key_y;
 
+    /* every controller with a stick counts (yoke, pad, stick): the first
+       device Windows lists can be a mouse dock with buttons only */
     poll_joystick();
-    if (num_joysticks > 0 && joystick_is_connected(0)) {
-        x += (double)joy_x;
-        y += (double)joy_y * (invert_pitch ? -1.0 : 1.0);
-        if (joy[0].num_buttons > 0 && joy[0].button[0].b) in->fire_r = 1;
-        if (joy[0].num_buttons > 1 && joy[0].button[1].b) in->fire_l = 1;
-        if (joy[0].num_buttons > 2 && joy[0].button[2].b) in->thumb_r = 1;
-        if (joy[0].num_buttons > 3 && joy[0].button[3].b) in->thumb_l = 1;
-        if (joy[0].num_buttons > 6 && joy[0].button[6].b) in->coin_l = 1;
+    for (int d = 0; d < num_joysticks; d++) {
+        if (!joystick_is_connected(d) || !joystick_has_stick(d) || joy_ignored(d)) continue;
+        x += (double)joy[d].stick[0].axis[0].pos;
+        y += (double)joy[d].stick[0].axis[1].pos * (invert_pitch ? -1.0 : 1.0);
+        for (int f = 0; f < JB_COUNT; f++) {
+            int b = joy_button[f];
+            if (b < 0 || b >= joy[d].num_buttons || !joy[d].button[b].b) continue;
+            switch (f) {
+            case JB_FIRE_R:  in->fire_r = 1; break;
+            case JB_FIRE_L:  in->fire_l = 1; break;
+            case JB_THUMB_R: in->thumb_r = 1; break;
+            case JB_THUMB_L: in->thumb_l = 1; break;
+            default:         in->coin_l = 1; break;
+            }
+        }
     }
     /* the options menu swallows every game button while it is open */
     if (menu_active) {
