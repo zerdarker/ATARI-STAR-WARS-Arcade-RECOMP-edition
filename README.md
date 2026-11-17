@@ -1,200 +1,163 @@
-# Star Wars — disassembly and C port
+# Star Wars & The Empire Strikes Back — Widescreen 16:9 Edition
 
-> **New: [Widescreen 16:9 Edition](WIDESCREEN.md)** — Star Wars (1983) and
-> The Empire Strikes Back (1985) recompiled for modern PCs: true 16:9 field of
-> view, vector options menu, 120 Hz+, autofire, controller and flight-yoke
-> support, and a vector game-selection page. Bring your own MAME ROM sets.
->
-> [![Widescreen edition](docs/widescreen/selection.png)](WIDESCREEN.md)
+Atari's vector arcade classics, **recompiled for modern PCs**: a true 16:9
+field of view (not a stretched 4:3 picture), a vector-drawn options menu in the
+games' own style, 120 Hz+ smoothness, autofire, full controller support, and a
+vector game-selection page.
 
-An **AI-assisted disassembly of Star Wars** (Atari, 1983): the main 6809
-program with both banks, the vector ROM and the sound board's 6809 program, as
-plain assembler source that re-encodes to the ROMs byte for byte — and the
-main program again **as C**, every routine checked against the ROM running on
-a model of the board. The work was done with an AI assistant (Anthropic's
-Claude) under one rule: **no invented data**. Every constant, table and branch
-traces to a ROM address, and every name and upper-case comment is Atari's own,
-placed on the ROM by re-assembling Atari's source.
+- **Star Wars (1983)** runs on the [C port](c_src/README.md) of this
+  repository: Atari's 6809 program translated to C.
+- **The Empire Strikes Back (1985)** runs its original ROM on emulated 6809
+  cores ([`esb_src/`](esb_src/README.md)), behind the same PC engine.
 
-Beside the port sits its **emulator twin**, [`emu_src/`](emu_src/README.md):
-`sw_emu.exe` runs the real ROMs (your own — none is included) on two 6809
-cores behind the very same window, sound, controls and chip models as the
-port, so the original and the translation can be played side by side.
+> **No ROMs are included.** You must supply your own MAME ROM sets and place
+> them yourself in the `roms` folder of each game (see
+> [Installing your ROMs](#installing-your-roms)).
 
-It follows the
-[Tempest](https://github.com/tcottrill/Tempest-Full-Disassembly-and-C-Port),
-[Gravitar](https://github.com/tcottrill/Gravitar-Full-Disassembly-and-C-Port),
-[Space Duel](https://github.com/tcottrill/Space-Duel-Full-Disassembly-and-C-Port),
-[Asteroids](https://github.com/tcottrill/Asteroids-Full-Disassembly-and-C-Port),
-[Asteroids Deluxe](https://github.com/tcottrill/Asteroids-Deluxe-Full-Disassembly-and-C-Port),
-[Lunar Lander](https://github.com/tcottrill/Lunar-Lander-Full-Disassembly-and-C-Port),
-[BattleZone](https://github.com/tcottrill/BattleZone-Full-Disassembly-and-C-Port)
-and [Omega Race](https://github.com/tcottrill/Omega-Race-Full-Disassembly-and-C-Port)
-projects. This repository holds the disassembly, the oracle, both programs of
-the machine as C, and two things to run: **`c_src/sw_win.exe`, the C port,
-which plays** — window, sound, the flight yoke on the mouse, no 6809 in it —
-and `emu_src/sw_emu.exe`, the real ROMs on 6809 cores behind the same window
-(see [Status](#status)).
+## Download
 
-**[See every vector object in the game](https://tcottrill.github.io/Star-Wars-Full-Disassembly-and-C-Port/disasm/shapes_preview.html)**
-— `shapes_preview.html`, drawn from the ROM: the character set, the vector
-pictures, the 26 three-dimensional objects as wireframes you can turn, and
-the messages.
+A ready-to-play package (the three programs, documentation and empty `roms`
+folders — **no ROMs**) is on the [Releases](../../releases) page. Unzip it
+anywhere, add your ROM sets, run `Star Wars Arcade - Selection.bat`.
 
-## Quick start
+**Requirements:** Windows 10 or 11 (64-bit), a graphics card with OpenGL 3.3.
+The Visual C++ runtime DLLs are included next to each program. The programs
+are not code-signed: Windows SmartScreen or an antivirus may ask you to
+confirm the first launch.
 
-Nothing here runs without a ROM set, and none is included.
+![Game selection page](docs/widescreen/selection.png)
 
-1. Put a MAME `starwars` set (a zip, or loose files) in `roms/`.
-2. `python disasm/image.py` — finds the chips by CRC32 and writes the working
-   images to `disasm/build/`, where both programs read them at run time.
-   (`python disasm/gen_from_roms.py --check` does the same and then rebuilds
-   and verifies every listing; that needs Atari's source archive at
-   `star-wars-main/`, see below. Reading the checked-in listings needs
-   neither.)
-3. Run [`c_src/sw_win.exe`](c_src/README.md#playing) (the C port) or
-   [`emu_src/sw_emu.exe`](emu_src/README.md) (the ROMs on 6809 cores). Both are
-   Windows programs and build from source with Visual Studio 2022
-   (`c_src/build_win.bat`, `emu_src/build_emu.bat`).
+| Star Wars — 16:9 cockpit | The Empire Strikes Back — AT-AT walkers |
+|---|---|
+| ![Star Wars](docs/widescreen/starwars-play.png) | ![ESB walkers](docs/widescreen/esb-walkers.png) |
+| ![Star Wars title](docs/widescreen/starwars-title.png) | ![ESB space](docs/widescreen/esb-space.png) |
 
-## What's in the repository
+![Options menu](docs/widescreen/options-menu.png)
 
-| where | what |
-|-------|------|
-| [`disasm/`](disasm/README.md) | the four listings, two defines files, the shape preview page, and the Python tools that generate and verify all of it from a ROM set — among them `macasm69.py`, an assembler for Atari's 6809 source dialect |
-| [`disasm/shapes_preview.html`](https://tcottrill.github.io/Star-Wars-Full-Disassembly-and-C-Port/disasm/shapes_preview.html) | one self-contained page drawn from the ROM: the 45-character set, 279 vector pictures, the 26 three-dimensional objects as wireframes you can turn, and the 214 messages |
-| [`disasm/_survey/starwars_inputs.md`](disasm/_survey/starwars_inputs.md) | the survey the work started from: ROM sets, Atari's link structure, the source dialect, the memory map |
-| [`c_src/`](c_src/README.md) | **the C port, playable** (`sw_win.exe`): the main program and the sound program as C — the translator, its output, the two hand-written routines — on models of the chips (the vector generator driven by its state PROM, the matrix processor by its microcode PROMs, 6532, POKEYs, speech chip), with the Windows backend. Also the oracle (the real ROMs on a 6809 core, with a scripted harness and its gates) and the verifier that runs every C routine against it. Builds with Visual Studio 2022 |
-| [`emu_src/`](emu_src/README.md) | **the emulator twin** (`sw_emu.exe`): the real ROMs on two 6809 cores behind the same window, sound and controls. A separate program with its own copy of every file; nothing is shared with `c_src` at build time |
-| [`docs/`](docs/) | [the hardware](docs/HARDWARE.md), with the source of every fact; [the oracle](docs/ORACLE.md), its gates and what it measured; [the C port](docs/PORT.md), its conventions, results and what is not verified |
-
-## Sources, and what is not included
-
-This is not blind reverse engineering. **Atari's own source code for Star
-Wars** — the MAC69 sources, the link maps and the link images — is published
-at [historicalsource/star-wars](https://github.com/historicalsource/star-wars).
-It is not distributed here. The recovered listings are checked in, so nothing
-here needs it to read them; the tools that rebuild them expect the archive
-unzipped at `star-wars-main/`.
-
-Hardware facts were cross-checked against the Star Wars driver of the
-[AAE emulator](https://github.com/tcottrill/AAE).
-
-## No ROMs included — bring your own
-
-Atari's ROM images are not distributed. Given a MAME `starwars` ROM set in
-`roms/`, one script builds the working images and regenerates and verifies
-every listing:
-
-```bash
-python disasm/gen_from_roms.py --check
-```
-
-The chips are found by CRC32, not by file name, so a MAME zip, a directory of
-zips or a directory of loose files all work. Regenerating reproduces the
-checked-in files byte for byte.
-
-## The listing is Atari's source, re-assembled
-
-`disasm/macasm69.py` is an assembler for the MAC69 dialect Atari's sources are
-written in: macros that define macros, the HLL69F structured-programming layer
-built on assembler stacks, the vector macros, left-to-right expressions,
-six-significant-character symbols, and Atari's own 6809 operand syntax. It
-assembles all 45 modules of the three link images at the section bases of
-Atari's link maps and compares the result with Atari's link images, with the
-maps and with the ROMs.
+## Features
 
 | | |
 |---|---|
-| main program, bank 0 and the vector ROM: bytes emitted by the source, all matching | **44,990 / 44,990** |
-| main program, bank 1 | **8,192 / 8,192** |
-| sound program | **16,388 / 16,388** |
-| relocatable sections with base and size equal to Atari's link maps | **47 of 47** |
-| global symbols equal to Atari's link maps | **1,461** main, **185** sound |
-| listings re-encoded from their text and compared with the ROMs | **69,632 bytes, 0 mismatches** |
-| routine headers, each with a description | **650** — 559 from Atari's source, 91 written here and marked `[note]` |
-| hardware registers, RAM variables and equates in the two defines files, each with a description | **1,530** — 840 with Atari's own comment (upper case), 690 written here (lower case) |
+| **True 16:9** | The games' own field is widened: 3D objects, stars and lasers use the full width, the cockpit guns sit at the edges of the wider picture, lasers start from the moved guns. |
+| **Vector options menu** | Press **F1** (also shown at launch). Drawn with the game beam and an AVG-style stroke font. |
+| **Presets** | `ARCADE 1983` (original timing, no phosphor trail, no autofire) and `MODERN PC` (120 Hz+ presentation, short phosphor trail, autofire). Any change shows `CUSTOM`. |
+| **Smoothness** | `DISPLAY 120HZ+` redraws at the monitor's refresh rate and recomputes the phosphor decay every frame; game speed is unchanged. |
+| **Autofire** | Hold a trigger to fire repeatedly; rate 1–30 shots/s. |
+| **Controllers** | Mouse, keyboard, gamepads and flight yokes (GRS Star Wars Flight Yoke included). Every connected controller is read; buttons are remappable in the `.ini`. |
+| **Game selection page** | Both title logos, framed, drawn as vectors, with the Star Wars attract-mode theme playing in a loop. The logos and the music are produced by the games themselves on first run, so the page contains no ROM data. |
+| **Fullscreen** | Both games and the selection page start in borderless fullscreen (**Alt+Enter** toggles). |
+| **Clean audio** | XAudio2 stream fixed (no crackle). |
 
-The 66 bytes that no source statement assembles — 18 at the end of the vector
-ROM and 48 in the top program ROM — are ROM fill, and the listings say so.
+## Installing your ROMs
 
-## Two revisions, two bytes
+Use your own, legally obtained **MAME** ROM sets, as zip files. Chips are
+recognised by their CRC, as MAME does, so older sets with different file names
+work too. Nothing is ever written to your zips: every 16:9 change is applied in
+memory when the game loads.
 
-Atari's source, linked on 22 June 1983, builds **revision 1** — MAME's
-`starwars1` — exactly. The listings show **revision 2**, MAME's parent set
-`starwars`. The two differ in two bytes: at `$6164` a `CMPA` became a `SUBA`
-in the test for a stuck random-number generator, and at `$7A7C` the ROM
-checksum word follows. Both lines are marked in the listing with the rev-1
-value.
+| Game | MAME set | Put it here |
+|---|---|---|
+| Star Wars | `starwars` (revision 2, or revision 1 `starwars1`) | `StarWars-Arcade/StarWars-16-9/roms/starwars.zip` |
+| The Empire Strikes Back | `esb` | `empire strikes back - Arcade/ESB-16-9/roms/esb.zip` |
 
-## What the archive also turned out to hold
+If a ROM set is missing or incomplete, the game says which file it expected and
+where.
 
-- **The AVG state PROM.** `AVGROM.LDA` equals PROM 136021-109, all 256 entries.
-- **The matrix processor microcode.** `SWMP.LDA` equals the four microcode
-  PROMs 136021-110 to -113 at every address it loads, two PROMs to a byte.
-- **Scrambled credits** in the ROM fill modules, which the listings show as the
-  source spells them: `GREG RIVERA DID IT`, `EARL VICKERS DID AUDIO`, `MIKE
-  HALLY WAS THE WHIPCRACKER`, `ERIC DURFEY GOT WIRED`, `JED MARGOLIN --
-  ENGINEER EMERITUS`, `NORMAN AVELLAR WAS FIRST`.
-- **Words in the Death Star's lights.** The dots on its dark side are letter
-  shapes (`B.M`, `B.A`, `B.Y` ... in `WSVROM.MAC`). On alternate waves the
-  city blocks spell `MAY THE FORCE` / `BE WITH YOU`, or `MARGOLIN`, `RIVERA`,
-  `HALLY`, `AVELLAR`, `VICKERS` and `DURFEY`.
+## Folder layout (ready to play)
 
-## Hardware, briefly
+```
+Star Wars Arcade - Selection.bat         <- start here
+Selection/
+    selection.exe   selection.ini
+StarWars-Arcade/
+    Star Wars (16-9 natif, port C).bat
+    StarWars-16-9/
+        sw_win.exe  sw_win.ini
+        roms/starwars.zip                <- your ROM set
+empire strikes back - Arcade/
+    Empire Strikes Back (16-9 natif).bat
+    ESB-16-9/
+        esb.exe     esb.ini
+        roms/esb.zip                     <- your ROM set
+```
 
-- **Main CPU:** 6809. `$6000-$7FFF` is banked between two halves of one 16K
-  ROM; Atari's source calls bank 1 the overlay and links it separately.
-- **Display:** Atari's colour Analog Vector Generator. Vector RAM is at
-  `$0000-$2FFF` and vector ROM at `$3000-$3FFF`; the program also copies
-  display lists from the program ROM into the top 2K of vector RAM and runs
-  them there as "pseudo vector ROM".
-- **Matrix processor:** a microcoded multiplier-accumulator with its own RAM at
-  `$5000-$5FFF`, shared with the CPU, and a hardware divider.
-- **Sound board:** a second 6809 with four POKEYs, a 6532 and a TMS5220 speech
-  chip, talking to the main CPU through a pair of latches.
+## Controls
 
-## Status
+| Action | Mouse | Keyboard | Controller (Windows button no.) |
+|---|---|---|---|
+| Aim (yoke) | move | arrow keys | stick |
+| Fire (triggers) | left button · Star Wars: right button too | Left Ctrl, Alt | 1, 2 |
+| Thumb buttons — Star Wars: fire · **ESB: tow cable** | ESB: right & middle buttons | Space, Shift | 3, 4 |
+| Insert coin | — | 5 | 7 |
+| Options menu | — | F1 | — |
+| Quit | — | Esc | — |
 
-Steps 1 to 5 of 6 are done. The roadmap:
+In ESB the **tow cable** is fired from the yoke's thumb buttons, exactly as on
+the cabinet; autofire never applies to them, so a held button does not spend
+all four cables.
 
-1. **Disassembly** — [`disasm/`](disasm/README.md).
-2. **Oracle** — [`c_src/`](c_src/README.md): the real ROMs on a 6809 core with
-   the board modelled, the vector generator timed by exact counting from its
-   state PROM. Atari's own self test reports no errors on it, and six scripted
-   scenarios run deterministically; see [`docs/ORACLE.md`](docs/ORACLE.md) and
-   [`docs/HARDWARE.md`](docs/HARDWARE.md).
-3. **C port of the main program** — [`c_src/`](c_src/README.md): all 590
-   routines of both banks as C functions, generated from the listing (two
-   written by hand), carrying an exact 6809 cycle clock. Against the ROM on
-   the oracle, over 23 scripted scenarios — attract, games through the trench
-   and the Death Star explosion, game over and initials, the operator's pages,
-   the self test and every diagnostic — 24,559,885 routine calls, 778,576
-   interrupts, 47,157 whole mainline passes and 25 runs from RESET all compare
-   equal and take exactly the ROM's CPU cycles. 94.3 % of the program's
-   instructions were executed in those runs; of the 20 routines not reached,
-   12 have no reference anywhere in the ROM. See [`docs/PORT.md`](docs/PORT.md),
-   including what is not verified.
-4. **The sound program in C** — [`c_src/gen_snd/`](c_src/gen_snd/): the sound
-   board's 108 routines, the same way, verified in the same runs against the
-   oracle's sound 6809: 9,724,621 routine calls, 827,949 interrupts and 815,492
-   passes of its 4 ms mainline, all equal and cycle-exact.
-5. **Windows host and emulator twin** — two separate programs with the same
-   window, sound and controls. [`c_src/sw_win.exe`](c_src/README.md#playing)
-   is the C port: the two programs on the chip models, paced by their cycle
-   clocks and the vector generator's PROM-counted draw time, with four POKEYs
-   and the speech chip for sound. [`emu_src/sw_emu.exe`](emu_src/README.md) is
-   the real ROMs on 6809 cores. Both hold machine time to the wall clock
-   (measured 10.001 s in 10.003 s), and Atari's self test, run in C, reports
-   no errors. Not judged by a player yet: how the yoke feels on a mouse, and
-   the sound by ear.
-6. The Empire Strikes Back, which has no surviving source: it reuses all of the
-   above, and the Star Wars build supplies names for the code the two share.
+### Remapping a controller
 
-## License
+In `sw_win.ini` / `esb.ini`, section `[joystick]`:
 
-The disassembly and the tools are released under the **GNU General Public
-License, version 2 or later**, the same terms as MAME. The names and comments
-recovered from Atari's source archive remain Atari's; the archive itself is
-not distributed here. Star Wars is a trademark of its owner, and no ROM images
-are included.
+```ini
+ignore=ROCCAT            ; device names to skip, ';'-separated (e.g. a mouse dock that poses as a joystick)
+button_fire_r=1          ; numbers as shown in Windows' "Game Controllers" panel, 0 = none
+button_fire_l=2
+button_thumb_r=3
+button_thumb_l=4
+button_coin=7
+deadzone=19
+```
+
+## Building
+
+Visual Studio 2022 (Build Tools are enough), x64:
+
+```
+cmd /c c_src\build_win_bt.bat           -> c_src\sw_win.exe     (Star Wars)
+cmd /c esb_src\build_esb.bat            -> esb_src\esb.exe      (The Empire Strikes Back)
+cmd /c selector_src\build_selector.bat  -> selector_src\selection.exe
+```
+
+`build_win_bt.bat` is `build_win.bat` pointed at the VS 2022 *Build Tools*
+install; use `build_win.bat` with the Community edition.
+
+## How the 16:9 widening works
+
+Full details, addresses and values: [Star Wars changes](docs/widescreen/PATCHES-16-9.md)
+· [The Empire Strikes Back changes](docs/widescreen/PATCHES-ESB-16-9.md).
+
+**Star Wars** (C port, see [`c_src/`](c_src/README.md)):
+
+- object clamp `VGEDG` ±510 → ±680, laser origins `VGLIM` ±480 → ±730,
+  new HUD anchors `VGHUD` ±650 (score and wave stay on screen);
+- star visibility cone widened ×4/3;
+- 16:9 picture space in the renderer;
+- cockpit guns: the four `VOFF` words of the vector ROM set to ±650, in memory.
+
+**The Empire Strikes Back** (real ROM, see [`esb_src/`](esb_src/README.md)):
+
+- the board's extra hardware: second ROM bank at `$A000`, the **137412-101
+  Slapstic** protection chip (state machine from MAME), 64K sound map;
+- the 6809's dead bus cycles in indexed addressing, also from MAME: the
+  Slapstic's alternate bank sequence (`$9Exx`, `$FFFF`, `$9B5x`) is keyed on
+  them, and the game crashes without them;
+- in memory: object clamp ±680, star cone ×1.31 (a 25-byte 6809 routine in free
+  ROM space), snowspeeder and space-phase guns moved to 4/3 of their offset,
+  laser-origin table moved with them.
+
+## Credits and license
+
+- Disassembly, C port, emulator twin and PC engine: **Tim Cottrill**
+  (this repository's upstream). See [README-upstream.md](README-upstream.md) (the original project README).
+- Slapstic 137412-101 logic and 6809 dead-cycle table: from **MAME**
+  (`slapstic.cpp`, `m6809.lst`, BSD-3-Clause; Aaron Giles, Nathan Woods and
+  the MAME team).
+- Source licenses: see [LICENSE](LICENSE) and the SPDX headers of each file
+  (GPL-2.0 / GPL-3.0-or-later, plus the Unlicense/MIT-style vendored files).
+
+*Star Wars* and *The Empire Strikes Back* are trademarks of Lucasfilm Ltd. The
+games are © Atari / Atari Games. This is a non-commercial fan project, not
+affiliated with or endorsed by Lucasfilm, Disney or Atari. **No ROM data is
+distributed**; you need your own ROM sets.
