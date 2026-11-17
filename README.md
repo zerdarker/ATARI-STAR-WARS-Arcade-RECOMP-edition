@@ -1,5 +1,12 @@
 # Star Wars — disassembly and C port
 
+> **New: [Widescreen 16:9 Edition](WIDESCREEN.md)** — Star Wars (1983) and
+> The Empire Strikes Back (1985) recompiled for modern PCs: true 16:9 field of
+> view, vector options menu, 120 Hz+, autofire, controller and flight-yoke
+> support, and a vector game-selection page. Bring your own MAME ROM sets.
+>
+> [![Widescreen edition](docs/widescreen/selection.png)](WIDESCREEN.md)
+
 An **AI-assisted disassembly of Star Wars** (Atari, 1983): the main 6809
 program with both banks, the vector ROM and the sound board's 6809 program, as
 plain assembler source that re-encodes to the ROMs byte for byte — and the
