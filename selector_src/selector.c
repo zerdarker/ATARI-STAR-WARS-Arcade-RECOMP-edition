@@ -317,7 +317,7 @@ static void draw(int sel, double t, float dt)
     glClear(GL_COLOR_BUFFER_BIT);
     beam_clear();
     stars(dt);
-    vfont_center(0.0f, 228.0f, 7.0f, C_TITLE, "SELECTION");
+    vfont_center(0.0f, 228.0f, 7.0f, C_TITLE, "SELECT GAME");
     for (i = 0; i < 2; i++) {
         const game *g = &games[i];
         float cx = (i == 0 ? -1.0f : 1.0f) * (bw * 0.5f + 20.0f);
@@ -347,7 +347,7 @@ static void draw(int sel, double t, float dt)
         vfont_center(cx, y0 + 30.0f, fminf(3.6f, (bw - 40.0f) / (6.0f * (float)strlen(g->title))),
                      i == sel ? C_SEL : dim(C_TEXT, 0.6f), g->title);
     }
-    vfont_center(0.0f, -268.0f, 2.6f, C_DIM, "<  >: CHOISIR    ENTREE / TIR: JOUER    ECHAP: QUITTER");
+    vfont_center(0.0f, -268.0f, 2.6f, C_DIM, "<  >: CHOOSE    ENTER / FIRE: PLAY    ESC: QUIT");
     beam_draw_all(beam_proj);
 }
 

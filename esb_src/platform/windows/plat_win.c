@@ -1132,9 +1132,9 @@ static void menu_update(void)
 static void menu_emit(void)
 {
     static const char *labels[MI_COUNT] = {
-        "PREREGLAGE", "PLEIN ECRAN", "VSYNC", "FLUIDITE", "PHOSPHORE",
-        "LARGEUR TRAIT", "LUMINOSITE", "TIR AUTO", "CADENCE TIR",
-        "SOURIS", "INVERSER TANGAGE", "JOUER"
+        "PRESET", "FULLSCREEN", "VSYNC", "SMOOTHNESS", "PHOSPHOR",
+        "LINE WIDTH", "BRIGHTNESS", "AUTOFIRE", "FIRE RATE",
+        "MOUSE", "INVERT PITCH", "PLAY"
     };
     const rgb_t C_TITLE = MAKE_RGB(255, 40, 40);
     const rgb_t C_LABEL = MAKE_RGB(40, 255, 60);
@@ -1173,18 +1173,18 @@ static void menu_emit(void)
         switch (i) {
         case MI_PRESET:
             snprintf(val, sizeof val, "%s", menu_preset == 0 ? "ARCADE 1983"
-                     : menu_preset == 1 ? "PC MODERNE" : "PERSO");
+                     : menu_preset == 1 ? "MODERN PC" : "CUSTOM");
             break;
-        case MI_FULL:   snprintf(val, sizeof val, "%s", is_fullscreen ? "OUI" : "NON"); break;
-        case MI_VSYNC:  snprintf(val, sizeof val, "%s", swap_mode ? "OUI" : "NON"); break;
-        case MI_FLUID:  snprintf(val, sizeof val, "%s", present_monitor ? "ECRAN 120HZ+" : "ORIGINALE"); break;
+        case MI_FULL:   snprintf(val, sizeof val, "%s", is_fullscreen ? "ON" : "OFF"); break;
+        case MI_VSYNC:  snprintf(val, sizeof val, "%s", swap_mode ? "ON" : "OFF"); break;
+        case MI_FLUID:  snprintf(val, sizeof val, "%s", present_monitor ? "DISPLAY 120HZ+" : "ORIGINAL"); break;
         case MI_PHOS:   snprintf(val, sizeof val, "%d MS", (int)ph_tau); break;
         case MI_WIDTH:  snprintf(val, sizeof val, "%.1f", beam_px); break;
         case MI_BRIGHT: snprintf(val, sizeof val, "%.1f", gamma_gain); break;
-        case MI_AUTOF:  snprintf(val, sizeof val, "%s", autofire_enabled ? "OUI" : "NON"); break;
+        case MI_AUTOF:  snprintf(val, sizeof val, "%s", autofire_enabled ? "ON" : "OFF"); break;
         case MI_AFHZ:   snprintf(val, sizeof val, "%d/S", (int)autofire_hz); break;
         case MI_SENS:   snprintf(val, sizeof val, "%.2f", mouse_sens); break;
-        case MI_INVERT: snprintf(val, sizeof val, "%s", invert_pitch ? "OUI" : "NON"); break;
+        case MI_INVERT: snprintf(val, sizeof val, "%s", invert_pitch ? "ON" : "OFF"); break;
         default: val[0] = '\0'; break;
         }
         if (i == menu_sel) {
@@ -1196,9 +1196,9 @@ static void menu_emit(void)
         }
     }
 
-    vfont_text(-vfont_width(2.6f, "FLECHES: REGLER   ENTREE: VALIDER   F1/ECHAP: FERMER") * 0.5f,
+    vfont_text(-vfont_width(2.6f, "ARROWS: ADJUST   ENTER: SELECT   F1/ESC: CLOSE") * 0.5f,
                -288.0f, 2.6f, C_DIM,
-               "FLECHES: REGLER   ENTREE: VALIDER   F1/ECHAP: FERMER");
+               "ARROWS: ADJUST   ENTER: SELECT   F1/ESC: CLOSE");
 }
 
 /* ------------------------------------------------------------------ */
