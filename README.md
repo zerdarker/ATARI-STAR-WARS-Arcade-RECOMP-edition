@@ -1,6 +1,7 @@
-# Star Wars & The Empire Strikes Back — Widescreen 16:9 Edition
+# Star Wars Trilogy — Vector Recomp Edition
 
-Atari's vector arcade classics, **recompiled for modern PCs**: a true 16:9
+**Star Wars (1983)** and **The Empire Strikes Back (1985)**, Atari's vector
+arcade classics, **recompiled for modern PCs**: a true 16:9
 field of view (not a stretched 4:3 picture), a vector-drawn options menu in the
 games' own style, 120 Hz+ smoothness, autofire, full controller support, and a
 vector game-selection page.
