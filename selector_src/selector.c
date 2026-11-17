@@ -241,6 +241,78 @@ static void load_logo(game *g)
     LOG_INFO("%s: %d logo strokes", g->title, g->n);
 }
 
+/* The attract-mode theme of Star Wars, recorded from the game on first run.
+ * The game plays it only every ~6.7 minutes (MUSTIM, $4B34, against TIMER+2)
+ * and never on the first attract cycle; the script pokes MUSTIM so it plays
+ * at once, and the music is cut from the recording (12.8 s, no effects). */
+static char music_path[MAX_PATH];
+
+static void put_le(FILE *f, unsigned v, int n) { while (n--) { fputc((int)(v & 0xFF), f); v >>= 8; } }
+
+static void write_wav(const char *path, const short *pcm, size_t n)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fwrite("RIFF", 1, 4, f); put_le(f, 36u + (unsigned)n * 2u, 4);
+    fwrite("WAVEfmt ", 1, 8, f); put_le(f, 16, 4); put_le(f, 1, 2); put_le(f, 1, 2);
+    put_le(f, 44100, 4); put_le(f, 88200, 4); put_le(f, 2, 2); put_le(f, 16, 2);
+    fwrite("data", 1, 4, f); put_le(f, (unsigned)n * 2u, 4);
+    fwrite(pcm, 2, n, f);
+    fclose(f);
+}
+
+static void prepare_music(const char *starwars_exe)
+{
+    char raw[MAX_PATH], script[MAX_PATH], args[3 * MAX_PATH];
+    FILE *f;
+    long size;
+    short *pcm;
+    size_t n, a, b, k;
+
+    snprintf(music_path, sizeof music_path, "%slogos\\theme.wav", exe_dir);
+    if (GetFileAttributesA(music_path) != INVALID_FILE_ATTRIBUTES) return;
+    snprintf(raw, sizeof raw, "%slogos\\attract.wav", exe_dir);
+    snprintf(script, sizeof script, "%slogos\\theme.txt", exe_dir);
+    f = fopen(script, "w");
+    if (!f) return;
+    fputs("20 poke 0x4B34 0x55\n", f);
+    fclose(f);
+    snprintf(args, sizeof args, "--turbo --hidden --no-nvram --script \"%s\" --wav \"%s\" --passes 700", script, raw);
+    LOG_INFO("recording the Star Wars theme: %s %s", starwars_exe, args);
+    run_game(starwars_exe, args, 120000);
+    DeleteFileA(script);
+
+    f = fopen(raw, "rb");
+    if (!f) { LOG_ERROR("no recording %s", raw); return; }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    n = size > 44 ? (size_t)(size - 44) / 2 : 0;
+    pcm = (short *)malloc(n * 2 + 44100 * 6);
+    if (pcm) { fseek(f, 44, SEEK_SET); n = fread(pcm, 2, n, f); }
+    fclose(f);
+    DeleteFileA(raw);
+    if (!pcm) return;
+    for (a = 0; a < n && abs(pcm[a]) <= 300; a++) {}
+    for (b = n; b > a && abs(pcm[b - 1]) <= 300; b--) {}
+    if (b - a < 44100) { LOG_ERROR("the theme was not in the recording"); free(pcm); return; }
+    b = b + 44100 / 2 < n ? b + 44100 / 2 : n;                 /* the last note's tail */
+    memmove(pcm, pcm + a, (b - a) * 2);
+    n = b - a;
+    for (k = 0; k < 44100 * 5 / 2; k++) pcm[n++] = 0;         /* a breath between two loops */
+    write_wav(music_path, pcm, n);
+    free(pcm);
+    LOG_INFO("Star Wars theme: %.1f s", (double)n / 44100.0);
+}
+
+static int music_on;
+
+static void music(int play)
+{
+    if (!music_on) return;
+    if (play) PlaySoundA(music_path, NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
+    else PlaySoundA(NULL, NULL, 0);
+}
+
 static void load_games(void)
 {
     static const char *const sec[2] = { "game1", "game2" };
@@ -443,12 +515,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
     sel = get_config_int("main", "last", 0) ? 1 : 0;
     start_full = get_config_int("main", "fullscreen", 1) != 0;
     set_config_int("main", "fullscreen", start_full);
+    music_on = get_config_int("main", "music", 1) != 0;
+    set_config_int("main", "music", music_on);
     load_games();
+    if (music_on) prepare_music(games[0].exe);
 
     for (int i = 0; i < N_STARS; i++) { star_x[i] = frand() * 2 - 1; star_y[i] = frand() * 2 - 1; star_z[i] = frand(); }
     ShowWindow(hWnd, SW_SHOW);
     SetForegroundWindow(hWnd);
     if (start_full) ToggleFullscreen();
+    music(1);
     timeBeginPeriod(1);
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&t0);
@@ -468,12 +544,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
         if (edge & IN_PLAY) {
             set_config_int("main", "last", sel);
             LOG_INFO("playing %s", games[sel].title);
+            music(0);
             if (is_fullscreen) ToggleFullscreen();
             ShowWindow(hWnd, SW_HIDE);
             run_game(games[sel].exe, "", INFINITE);
             ShowWindow(hWnd, SW_SHOW);
             SetForegroundWindow(hWnd);
             if (start_full) ToggleFullscreen();
+            music(1);
             memset(key, 0, sizeof key);
             mouse_b = 0;
             prev = -1;                           /* the key that quit the game must not act here */
@@ -486,6 +564,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
         glSwap();
     }
 
+    music(0);
     timeEndPeriod(1);
     beam_shutdown();
     remove_joystick();

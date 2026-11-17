@@ -33,7 +33,7 @@ vector game-selection page.
 | **Smoothness** | `DISPLAY 120HZ+` redraws at the monitor's refresh rate and recomputes the phosphor decay every frame; game speed is unchanged. |
 | **Autofire** | Hold a trigger to fire repeatedly; rate 1–30 shots/s. |
 | **Controllers** | Mouse, keyboard, gamepads and flight yokes (GRS Star Wars Flight Yoke included). Every connected controller is read; buttons are remappable in the `.ini`. |
-| **Game selection page** | Both title logos, framed, drawn as vectors. The logos are drawn by the games themselves on first run, so the page contains no ROM data. |
+| **Game selection page** | Both title logos, framed, drawn as vectors, with the Star Wars attract-mode theme playing in a loop. The logos and the music are produced by the games themselves on first run, so the page contains no ROM data. |
 | **Fullscreen** | Both games and the selection page start in borderless fullscreen (**Alt+Enter** toggles). |
 | **Clean audio** | XAudio2 stream fixed (no crackle). |
 

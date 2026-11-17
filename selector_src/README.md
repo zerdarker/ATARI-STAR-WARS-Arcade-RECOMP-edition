@@ -11,6 +11,12 @@ The logos are drawn by the games themselves on first run
 the picture's segments as text), and the page keeps the blue and cyan strokes
 below the score line. No ROM data is in this program.
 
+The music is the Star Wars attract-mode theme, recorded from the game on
+first run (`--wav`, with a script that pokes `MUSTIM` at `$4B34` so the game
+plays it at once instead of every ~6.7 minutes), cut to the 12.8 s of music and
+looped with a 2.5 s pause. It stops while a game runs. `[main] music=0` turns
+it off.
+
 `selection.ini` (next to the exe): `[gameN] title, exe, logo_picture`,
 `[main] fullscreen, last`, `[joystick] ignore`. Delete `logos\` to redraw them.
 
