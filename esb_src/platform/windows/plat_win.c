@@ -788,9 +788,10 @@ void plat_input_poll(plat_inputs *in)
         if (yoke_y > 255.0) yoke_y = 255.0;
 
         in->fire_r  = (key[KEY_LCONTROL] || (mouse_b & 1)) ? 1 : 0;
-        in->fire_l  = (key[KEY_ALT] || (mouse_b & 2)) ? 1 : 0;
-        in->thumb_r = key[KEY_SPACE] ? 1 : 0;
-        in->thumb_l = (key[KEY_LSHIFT] || key[KEY_RSHIFT]) ? 1 : 0;
+        in->fire_l  = key[KEY_ALT] ? 1 : 0;
+        /* ESB fires the tow cable from the thumb buttons, so the second mouse button is one */
+        in->thumb_r = (key[KEY_SPACE] || (mouse_b & 2)) ? 1 : 0;
+        in->thumb_l = (key[KEY_LSHIFT] || key[KEY_RSHIFT] || (mouse_b & 4)) ? 1 : 0;
         in->coin_l  = key[KEY_5] ? 1 : 0;
         in->coin_r  = key[KEY_6] ? 1 : 0;
         in->coin_aux = key[KEY_7] ? 1 : 0;
@@ -836,8 +837,7 @@ void plat_input_poll(plat_inputs *in)
         int on = fmod(now, period) < period * 0.5;
         if (in->fire_r)  in->fire_r  = (uint8_t)on;
         if (in->fire_l)  in->fire_l  = (uint8_t)on;
-        if (in->thumb_r) in->thumb_r = (uint8_t)on;
-        if (in->thumb_l) in->thumb_l = (uint8_t)on;
+        /* not the thumbs: a held cable button would spend every tow cable */
     }
     if (x < 0.0) x = 0.0;
     if (x > 255.0) x = 255.0;
