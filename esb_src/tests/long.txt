@@ -1,0 +1,33 @@
+0 dsw0 0xFA
+# ESB : pièce, départ à la gâchette, tirs réguliers en balayant le manche.
+# Les numéros sont des images (pas des passages de boucle).
+0 yaw 0x80
+0 pitch 0x80
+20 yaw 0x50
+20 pitch 0x50
+40 yaw 0xB0
+40 pitch 0xB0
+60 yaw 0x9F
+60 pitch 0x9F
+100 coinl 1
+104 coinl 0
+200 firel 1
+204 firel 0
+300 firel 1
+340 firel 0
+600 firel 1
+900 firel 0
+900 yaw 0x70
+1200 firel 1
+1500 firel 0
+1500 yaw 0xB0
+1800 firel 1
+2200 firel 0
+2200 yaw 0x9F
+2400 firel 1
+3000 firel 0
+3200 firel 1
+4000 firel 0
+4200 firel 1
+5000 firel 0
+

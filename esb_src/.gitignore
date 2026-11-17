@@ -1,0 +1,7 @@
+obj/
+roms/
+*.ini
+*.log
+*.nv
+vdump.txt
+
