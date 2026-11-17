@@ -56,7 +56,7 @@ l_jvwsta_10:;
     if (D > 0x0FFF) goto l_jvwsta_90;                /* L7DE9  B ?TOO FAR IN FRONT OR IN BACK? */
     hw_wr16(M_DVD, D);                               /* L7DED */
     D = rd16(M_YPS);                                 /* L7DF0  ?WIDTH IN VIEW ? */
-    D = sub16(D, rd16(M_XPS));                       /* L7DF3  ELSE BEYOND VIEW */
+    D = sub16(D, (uint16_t)((rd16(M_XPS) * 4u) / 3u)); /* L7DF3  16:9: view cone widened x4/3 (was X) */
     CYC(24 + ((!CCC) ? 1 : 0));
     if (!CCC) goto l_jvwsta_90;                      /* L7DF6  B ?BEYOND NORMAL VIEW ALSO? THEN GEN NEW STAR */
     D = rd16(M_ZPS);                                 /* L7DFA  ?HITE IN VIEW ? */
@@ -221,7 +221,7 @@ l_jvwstr_10:;
     if ((int16_t)D <= (int16_t)0x0100) goto l_jvwstr_90; /* L7EE4  B ?TOO CLOSE OR IN BACK? THEN NEW STAR */
     hw_wr16(M_DVD, D);                               /* L7EE8 */
     D = rd16(M_YPS);                                 /* L7EEB  ?WIDTH IN VIEW ? */
-    D = sub16(D, rd16(M_XPS));                       /* L7EEE  ELSE BEYOND VIEW */
+    D = sub16(D, (uint16_t)((rd16(M_XPS) * 4u) / 3u)); /* L7EEE  16:9: view cone widened x4/3 (was X) */
     CYC(24 + ((!CCC) ? 1 : 0));
     if (!CCC) goto l_jvwstr_90;                      /* L7EF1  B ?BEYOND NORMAL VIEW ALSO? THEN GEN NEW STAR */
     D = rd16(M_ZPS);                                 /* L7EF5  CHECK HITE ALSO */

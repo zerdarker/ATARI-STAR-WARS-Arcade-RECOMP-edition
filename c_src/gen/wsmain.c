@@ -4440,7 +4440,7 @@ void vwmes(void)
     D = (VGRW3&0x1FFF);                              /* L7627  HI UP */
     wr16(Y, D);                                      /* L762A */
     Y = (uint16_t)(Y + 2);
-    D = ((VGLIML+(0*VGS_CW))&0x1FFF);                /* L762C  LEFT */
+    D = ((VGHUDL+(0*VGS_CW))&0x1FFF);                /* L762C  LEFT (ancre HUD 16:9, pas VGLIML) */
     wr16(Y, D);                                      /* L762F */
     Y = (uint16_t)(Y + 2);
     A = 0x06;                                        /* L7631  ZERO SUPPRESS TOP 6 DIGITS */
@@ -4469,7 +4469,7 @@ void vwmes(void)
         D = (VGRW5&0x1FFF);                          /* L7655  Y POS */
         wr16(Y, D);                                  /* L7658 */
         Y = (uint16_t)(Y + 2);
-        D = ((VGLIML+(2*VGS_CW))&0x1FFF);            /* L765A  X POS */
+        D = ((VGHUDL+(2*VGS_CW))&0x1FFF);            /* L765A  X POS (ancre HUD 16:9) */
         wr16(Y, D);                                  /* L765D */
         Y = (uint16_t)(Y + 2);
         A = 0x05;                                    /* L765F  SUPRESS 5 LEADING ZEROES */
@@ -4489,7 +4489,7 @@ void vwmes(void)
     D = (VGRW1&0x1FFF);                              /* L7673  Y UP HI */
     wr16(Y, D);                                      /* L7676 */
     Y = (uint16_t)(Y + 2);
-    D = ((VGLIMR-((2+5)*VGS_CW))&0x1FFF);            /* L7678  X RIGHT */
+    D = ((VGHUDR-((2+5)*VGS_CW))&0x1FFF);            /* L7678  X RIGHT (ancre HUD 16:9) */
     wr16(Y, D);                                      /* L767B */
     Y = (uint16_t)(Y + 2);
     A = 0x01;                                        /* L767D  ZERO SUPPRES TOP 1 DIGIT */
@@ -4574,7 +4574,7 @@ void vwmtwz(void)
         D = (VGRW6&0x1FFF);                          /* L76E3 */
         wr16(Y, D);                                  /* L76E6 */
         Y = (uint16_t)(Y + 2);
-        D = ((VGLIMR-(5*VGS_CW))&0x1FFF);            /* L76E8 */
+        D = ((VGHUDR-(5*VGS_CW))&0x1FFF);            /* L76E8  (ancre HUD 16:9) */
         wr16(Y, D);                                  /* L76EB */
         Y = (uint16_t)(Y + 2);
         A = 0x01;                                    /* L76ED */

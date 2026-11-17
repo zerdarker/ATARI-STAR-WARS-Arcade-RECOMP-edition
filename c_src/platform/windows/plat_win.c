@@ -109,11 +109,17 @@ uint8_t plat_dsw1(void) { return dsw1; }
 #define AVG_W      250.0f
 #define AVG_H      280.0f
 #define PIC_HH     300.0f                      /* picture half-height, units */
-#define PIC_HW     (PIC_HH * 4.0f / 3.0f)      /* 4:3 */
+#define PIC_HW     (PIC_HH * 16.0f / 9.0f)     /* 16:9 widescreen (original: * 4/3) */
+/* 16:9 window in AVG units: the 4:3 tube spans x 0..250 (centre 125); the wide
+ * window keeps that centre and scale and shows 16/9 / (4/3) = 4/3 more width. */
+#define AVG_CX     (AVG_W * 0.5f)
+#define AVG_HWX    (AVG_CX * (16.0f / 9.0f) / (4.0f / 3.0f))
+#define AVG_XMIN   (AVG_CX - AVG_HWX)
+#define AVG_XMAX   (AVG_CX + AVG_HWX)
 
 static void xform_point(float x, float y, float *px, float *py)
 {
-    *px = (x / AVG_W * 2.0f - 1.0f) * PIC_HW;
+    *px = (x - AVG_CX) / AVG_HWX * PIC_HW;
     *py = (1.0f - y / AVG_H * 2.0f) * PIC_HH;
 }
 
@@ -124,8 +130,8 @@ static int clip_seg(float *x0, float *y0, float *x1, float *y1)
     float dx = *x1 - *x0, dy = *y1 - *y0;
     float p[4], q[4];
     int i;
-    p[0] = -dx; q[0] = *x0;
-    p[1] =  dx; q[1] = AVG_W - *x0;
+    p[0] = -dx; q[0] = *x0 - AVG_XMIN;
+    p[1] =  dx; q[1] = AVG_XMAX - *x0;
     p[2] = -dy; q[2] = *y0;
     p[3] =  dy; q[3] = AVG_H - *y0;
     for (i = 0; i < 4; i++) {
@@ -166,7 +172,7 @@ static int  g_quit;
 
 int SCREEN_W = 960;
 int SCREEN_H = 720;
-int DESIGN_W = 960;
+int DESIGN_W = 1280;                           /* 16:9 widescreen (original: 960, 4:3) */
 int DESIGN_H = 720;
 
 HWND win_get_window(void) { return hWnd; }
@@ -321,9 +327,16 @@ static void apply_capture(void)
 
 static int    swap_mode;
 static int    present_pending;
+static int    present_monitor;          /* [main] present_monitor: redraw at the display's rate (120Hz+) */
+static int    start_fullscreen;         /* [main] fullscreen: borderless fullscreen at startup */
 static unsigned long n_swaps, n_frames_in;
 static int    last_nsegs;
 static double gamma_gain = 1.0;         /* [vector] brightness: multiplies every vector's brightness */
+
+/* in-game vector options menu (defined after the input section) */
+static int  menu_active;
+static void menu_emit(void);
+static void menu_update(void);
 
 static void ph_replay(void)
 {
@@ -356,14 +369,18 @@ static void ph_replay(void)
             beam_add_line(s->x0, s->y0, s->x1, s->y1, 0xFF, MAKE_RGB(r, gg, bl));
         }
     }
-    beam_draw_all(beam_proj);
 }
 
 static void present_now(void)
 {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    ph_replay();
+    if (menu_active) {
+        beam_clear();
+        menu_emit();            /* menu seul sur fond noir, style menu de service */
+    } else
+        ph_replay();
+    beam_draw_all(beam_proj);
     glSwap();
     present_pending = 0;
     n_swaps++;
@@ -499,12 +516,14 @@ static int   audio_prime_blocks = 6;
 static float mouse_sens = 0.25f;          /* [input] mouse_sensitivity: A-to-D counts per mickey */
 static float key_rate = 400.0f;           /* [input] key_rate: counts per second on the arrow keys */
 static int   invert_pitch;
+static int   autofire_enabled = 1;        /* [input] autofire: held trigger fires repeatedly */
+static float autofire_hz = 10.0f;         /* [input] autofire_hz: salvoes per second while held */
 
 static int plat_init(void)
 {
     WNDCLASS wc;
     DWORD dwStyle;
-    RECT wr = { 0, 0, 960, 720 };
+    RECT wr = { 0, 0, 1280, 720 };             /* 16:9 widescreen (original: 960x720) */
     HINSTANCE hInstance = GetModuleHandle(NULL);
     int i;
 
@@ -553,6 +572,10 @@ static int plat_init(void)
     }
     swap_mode = get_config_int("main", "vsync", 0);
     set_config_int("main", "vsync", swap_mode);
+    present_monitor = get_config_int("main", "present_monitor", 0) != 0;
+    set_config_int("main", "present_monitor", present_monitor);
+    start_fullscreen = get_config_int("main", "fullscreen", 0) != 0;
+    set_config_int("main", "fullscreen", start_fullscreen);
 
     dsw0 = (uint8_t)get_config_int("dips", "dsw0", 0x84);
     dsw1 = (uint8_t)get_config_int("dips", "dsw1", 0x02);
@@ -570,6 +593,12 @@ static int plat_init(void)
     set_config_float("input", "key_rate", key_rate);
     invert_pitch = get_config_int("input", "invert_pitch", 0) != 0;
     set_config_int("input", "invert_pitch", invert_pitch);
+    autofire_enabled = get_config_int("input", "autofire", 1) != 0;
+    set_config_int("input", "autofire", autofire_enabled);
+    autofire_hz = get_config_float("input", "autofire_hz", 10.0f);
+    if (autofire_hz < 1.0f) autofire_hz = 1.0f;
+    if (autofire_hz > 30.0f) autofire_hz = 30.0f;
+    set_config_float("input", "autofire_hz", autofire_hz);
     capture_enabled = get_config_int("input", "mouse_capture", 1) != 0;
     set_config_int("input", "mouse_capture", capture_enabled);
 
@@ -617,7 +646,9 @@ static int plat_init(void)
         ShowWindow(hWnd, SW_SHOW);
         SetForegroundWindow(hWnd);
         window_active = GetForegroundWindow() == hWnd;
+        if (start_fullscreen && !is_fullscreen) ToggleFullscreen();
         apply_capture();
+        menu_active = 1;                /* vector options over the attract mode */
     }
     return 0;
 }
@@ -700,6 +731,7 @@ static int save_shot(const char *path)
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ph_replay();
+        beam_draw_all(beam_proj);
         glFinish();
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, shot_w, shot_h, GL_RGB, GL_UNSIGNED_BYTE, buf);
@@ -793,14 +825,327 @@ void plat_input_poll(plat_inputs *in)
         if (joy[0].num_buttons > 3 && joy[0].button[3].b) in->thumb_l = 1;
         if (joy[0].num_buttons > 6 && joy[0].button[6].b) in->coin_l = 1;
     }
+    /* the options menu swallows every game button while it is open */
+    if (menu_active) {
+        in->fire_r = in->fire_l = in->thumb_r = in->thumb_l = 0;
+        in->coin_l = in->coin_r = in->coin_aux = 0;
+    }
+    /* autofire: chop a held trigger into pulses so the game sees repeated presses */
+    if (autofire_enabled) {
+        double period = 1000.0 / (double)autofire_hz;
+        int on = fmod(now, period) < period * 0.5;
+        if (in->fire_r)  in->fire_r  = (uint8_t)on;
+        if (in->fire_l)  in->fire_l  = (uint8_t)on;
+        if (in->thumb_r) in->thumb_r = (uint8_t)on;
+        if (in->thumb_l) in->thumb_l = (uint8_t)on;
+    }
     if (x < 0.0) x = 0.0;
     if (x > 255.0) x = 255.0;
     if (y < 0.0) y = 0.0;
     if (y > 255.0) y = 255.0;
     in->yaw = (uint8_t)x;
     in->pitch = (uint8_t)y;
-    if (key[KEY_ESC]) g_quit = 1;
+    if (key[KEY_ESC] && !menu_active) g_quit = 1;
     in->quit = (uint8_t)g_quit;
+}
+
+/* ------------------------------------------------------------------ */
+/* vector options menu: AVG-style stroke text drawn with the game beam */
+/* over the attract mode.  F1 opens/closes it at any time.             */
+/* ------------------------------------------------------------------ */
+
+typedef struct { char c; const char *s; } vglyph;
+
+/* strokes on a 4x6 grid, "xy" pairs, ',' = pen up */
+static const vglyph vfont[] = {
+    { 'A', "00 04 26 44 40 , 02 42" },
+    { 'B', "00 06 36 45 44 33 42 41 30 00 , 03 33" },
+    { 'C', "46 16 05 01 10 40" },
+    { 'D', "00 06 36 45 41 30 00" },
+    { 'E', "46 06 00 40 , 03 23" },
+    { 'F', "46 06 00 , 03 23" },
+    { 'G', "46 16 05 01 10 40 43 23" },
+    { 'H', "00 06 , 40 46 , 03 43" },
+    { 'I', "10 30 , 20 26 , 16 36" },
+    { 'J', "01 10 30 41 46 , 26 46" },
+    { 'K', "00 06 , 46 03 40" },
+    { 'L', "06 00 40" },
+    { 'M', "00 06 24 46 40" },
+    { 'N', "00 06 40 46" },
+    { 'O', "10 01 05 16 36 45 41 30 10" },
+    { 'P', "00 06 36 45 44 33 03" },
+    { 'Q', "10 01 05 16 36 45 41 30 10 , 22 40" },
+    { 'R', "00 06 36 45 44 33 03 , 13 40" },
+    { 'S', "01 10 30 41 42 33 13 04 05 16 36 45" },
+    { 'T', "06 46 , 20 26" },
+    { 'U', "06 01 10 30 41 46" },
+    { 'V', "06 20 46" },
+    { 'W', "06 10 23 30 46" },
+    { 'X', "00 46 , 06 40" },
+    { 'Y', "06 23 46 , 23 20" },
+    { 'Z', "06 46 00 40" },
+    { '0', "10 01 05 16 36 45 41 30 10" },
+    { '1', "10 30 , 20 26 15" },
+    { '2', "05 16 36 45 43 00 40" },
+    { '3', "06 46 24 33 42 41 30 10 01" },
+    { '4', "30 36 02 42" },
+    { '5', "46 06 03 33 42 41 30 10 01" },
+    { '6', "45 36 16 05 01 10 30 41 42 33 13 02" },
+    { '7', "06 46 10" },
+    { '8', "13 04 05 16 36 45 44 33 13 02 01 10 30 41 42 33" },
+    { '9', "01 10 30 41 45 36 16 05 04 13 33 42" },
+    { ':', "21 22 , 24 25" },
+    { '.', "20 21" },
+    { '-', "03 43" },
+    { '+', "03 43 , 21 25" },
+    { '/', "00 46" },
+    { '%', "05 06 16 15 05 , 40 41 31 30 40 , 00 46" },
+    { '<', "45 13 41" },
+    { '>', "05 33 01" },
+    { 0, NULL }
+};
+
+static void vfont_char(float x, float y, float sc, rgb_t col, char c)
+{
+    const char *p = NULL;
+    float px = 0.0f, py = 0.0f;
+    int have = 0, i;
+    if (c == ' ') return;
+    for (i = 0; vfont[i].s; i++)
+        if (vfont[i].c == c) { p = vfont[i].s; break; }
+    if (!p) return;
+    while (*p) {
+        if (*p == ' ') { p++; continue; }
+        if (*p == ',') { have = 0; p++; continue; }
+        {
+            float nx = x + (float)(p[0] - '0') * sc;
+            float ny = y + (float)(p[1] - '0') * sc;
+            if (have) beam_add_line_w(px, py, nx, ny, 0xFF, col, sc * 0.22f);
+            px = nx; py = ny; have = 1;
+            p += 2;
+        }
+    }
+}
+
+static void vfont_text(float x, float y, float sc, rgb_t col, const char *s)
+{
+    for (; *s; s++, x += 6.0f * sc) vfont_char(x, y, sc, col, *s);
+}
+
+static float vfont_width(float sc, const char *s) { return (float)strlen(s) * 6.0f * sc; }
+
+/* ---- the menu itself ---- */
+
+enum {
+    MI_PRESET, MI_FULL, MI_VSYNC, MI_FLUID, MI_PHOS, MI_WIDTH,
+    MI_BRIGHT, MI_AUTOF, MI_AFHZ, MI_SENS, MI_INVERT, MI_PLAY, MI_COUNT
+};
+
+static int    menu_sel = MI_PRESET;
+static int    menu_preset = -1;              /* -1 perso, 0 arcade 1983, 1 pc moderne */
+static uint8_t menu_prev[256];
+static double menu_rep_t;                    /* auto-repeat timer for left/right */
+
+static void menu_save(void)
+{
+    set_config_int("main", "vsync", swap_mode);
+    set_config_int("main", "present_monitor", present_monitor);
+    set_config_int("main", "fullscreen", start_fullscreen);
+    set_config_float("vector", "phosphor_ms", (float)ph_tau);
+    set_config_float("vector", "linewidth", beam_px);
+    set_config_float("vector", "brightness", (float)gamma_gain);
+    set_config_int("input", "autofire", autofire_enabled);
+    set_config_float("input", "autofire_hz", autofire_hz);
+    set_config_float("input", "mouse_sensitivity", mouse_sens);
+    set_config_int("input", "invert_pitch", invert_pitch);
+}
+
+static void menu_apply_preset(int which)
+{
+    menu_preset = which;
+    if (which == 0) {               /* arcade 1983: la borne telle quelle */
+        swap_mode = SetSwapMode(1);
+        present_monitor = 0;
+        ph_tau = 0.0;
+        beam_px = 2.0f;  update_beam_width();
+        gamma_gain = 1.6;
+        autofire_enabled = 0;
+    } else if (which == 1) {        /* pc moderne: 120Hz+, lueur douce, tir auto */
+        swap_mode = SetSwapMode(1);
+        present_monitor = 1;
+        ph_tau = 12.0;
+        beam_px = 2.0f;  update_beam_width();
+        gamma_gain = 1.8;
+        autofire_enabled = 1;
+        autofire_hz = 10.0f;
+    }
+    menu_save();
+}
+
+static void menu_adjust(int dir)
+{
+    switch (menu_sel) {
+    case MI_PRESET: {
+        int p = menu_preset < 0 ? (dir > 0 ? 0 : 1) : (menu_preset + dir + 2) % 2;
+        menu_apply_preset(p);
+        return;
+    }
+    case MI_FULL:
+        ToggleFullscreen();
+        start_fullscreen = is_fullscreen;
+        break;
+    case MI_VSYNC:
+        swap_mode = SetSwapMode(!swap_mode);
+        break;
+    case MI_FLUID:
+        present_monitor = !present_monitor;
+        break;
+    case MI_PHOS:
+        ph_tau += dir * 2.0;
+        if (ph_tau < 0.0) ph_tau = 0.0;
+        if (ph_tau > 60.0) ph_tau = 60.0;
+        break;
+    case MI_WIDTH:
+        beam_px += dir * 0.2f;
+        if (beam_px < 1.0f) beam_px = 1.0f;
+        if (beam_px > 5.0f) beam_px = 5.0f;
+        update_beam_width();
+        break;
+    case MI_BRIGHT:
+        gamma_gain += dir * 0.1;
+        if (gamma_gain < 0.6) gamma_gain = 0.6;
+        if (gamma_gain > 3.0) gamma_gain = 3.0;
+        break;
+    case MI_AUTOF:
+        autofire_enabled = !autofire_enabled;
+        break;
+    case MI_AFHZ:
+        autofire_hz += (float)dir;
+        if (autofire_hz < 1.0f) autofire_hz = 1.0f;
+        if (autofire_hz > 30.0f) autofire_hz = 30.0f;
+        break;
+    case MI_SENS:
+        mouse_sens += dir * 0.05f;
+        if (mouse_sens < 0.05f) mouse_sens = 0.05f;
+        if (mouse_sens > 1.5f) mouse_sens = 1.5f;
+        break;
+    case MI_INVERT:
+        invert_pitch = !invert_pitch;
+        break;
+    default:
+        return;
+    }
+    if (menu_sel != MI_PRESET) menu_preset = -1;
+    menu_save();
+}
+
+static void menu_update(void)
+{
+    double now = plat_now_ms();
+    int up, dn, lf, rt, en, es, f1, lf_h, rt_h;
+
+    f1 = key[KEY_F1] && !menu_prev[KEY_F1];
+    up = key[KEY_UP] && !menu_prev[KEY_UP];
+    dn = key[KEY_DOWN] && !menu_prev[KEY_DOWN];
+    lf = key[KEY_LEFT] && !menu_prev[KEY_LEFT];
+    rt = key[KEY_RIGHT] && !menu_prev[KEY_RIGHT];
+    en = key[KEY_ENTER] && !menu_prev[KEY_ENTER];
+    es = key[KEY_ESC] && !menu_prev[KEY_ESC];
+    lf_h = key[KEY_LEFT]; rt_h = key[KEY_RIGHT];
+    memcpy(menu_prev, (const void *)key, sizeof menu_prev);
+
+    if (!menu_active) {
+        if (f1) { menu_active = 1; menu_sel = MI_PRESET; }
+        return;
+    }
+    if (f1 || es) { menu_active = 0; menu_save(); return; }
+
+    if (up) menu_sel = (menu_sel + MI_COUNT - 1) % MI_COUNT;
+    if (dn) menu_sel = (menu_sel + 1) % MI_COUNT;
+
+    if (lf || rt) { menu_adjust(rt ? 1 : -1); menu_rep_t = now + 350.0; }
+    else if ((lf_h || rt_h) && now >= menu_rep_t &&
+             (menu_sel == MI_PHOS || menu_sel == MI_WIDTH || menu_sel == MI_BRIGHT ||
+              menu_sel == MI_AFHZ || menu_sel == MI_SENS)) {
+        menu_adjust(rt_h ? 1 : -1);
+        menu_rep_t = now + 60.0;
+    }
+    if (en) {
+        if (menu_sel == MI_PLAY) { menu_active = 0; menu_save(); }
+        else menu_adjust(1);
+    }
+}
+
+static void menu_emit(void)
+{
+    static const char *labels[MI_COUNT] = {
+        "PREREGLAGE", "PLEIN ECRAN", "VSYNC", "FLUIDITE", "PHOSPHORE",
+        "LARGEUR TRAIT", "LUMINOSITE", "TIR AUTO", "CADENCE TIR",
+        "SOURIS", "INVERSER TANGAGE", "JOUER"
+    };
+    const rgb_t C_TITLE = MAKE_RGB(255, 40, 40);
+    const rgb_t C_LABEL = MAKE_RGB(40, 255, 60);
+    const rgb_t C_VALUE = MAKE_RGB(60, 220, 255);
+    const rgb_t C_SEL   = MAKE_RGB(255, 230, 50);
+    const rgb_t C_DIM   = MAKE_RGB(170, 40, 40);
+    const float sc = 4.2f, step = 36.0f;
+    const float lx = -330.0f, vx = 80.0f;
+    float y;
+    char val[48];
+    int i;
+
+    /* title, centred */
+    {
+        const char *t1 = "OPTIONS";
+        float s1 = 7.0f;
+        vfont_text(-vfont_width(s1, t1) * 0.5f, 218.0f, s1, C_TITLE, t1);
+        vfont_text(-vfont_width(3.2f, "STAR WARS 16:9") * 0.5f, 188.0f, 3.2f,
+                   C_LABEL, "STAR WARS 16:9");
+    }
+
+    y = 140.0f;
+    for (i = 0; i < MI_COUNT; i++, y -= step) {
+        rgb_t lc = i == menu_sel ? C_SEL : C_LABEL;
+        if (i == MI_PLAY) {
+            float w = vfont_width(sc + 1.0f, labels[i]);
+            y -= 10.0f;
+            vfont_text(-w * 0.5f, y, sc + 1.0f, lc, labels[i]);
+            if (i == menu_sel) {
+                vfont_text(-w * 0.5f - 40.0f, y, sc + 1.0f, C_SEL, ">");
+                vfont_text(w * 0.5f + 16.0f, y, sc + 1.0f, C_SEL, "<");
+            }
+            continue;
+        }
+        vfont_text(lx, y, sc, lc, labels[i]);
+        switch (i) {
+        case MI_PRESET:
+            snprintf(val, sizeof val, "%s", menu_preset == 0 ? "ARCADE 1983"
+                     : menu_preset == 1 ? "PC MODERNE" : "PERSO");
+            break;
+        case MI_FULL:   snprintf(val, sizeof val, "%s", is_fullscreen ? "OUI" : "NON"); break;
+        case MI_VSYNC:  snprintf(val, sizeof val, "%s", swap_mode ? "OUI" : "NON"); break;
+        case MI_FLUID:  snprintf(val, sizeof val, "%s", present_monitor ? "ECRAN 120HZ+" : "ORIGINALE"); break;
+        case MI_PHOS:   snprintf(val, sizeof val, "%d MS", (int)ph_tau); break;
+        case MI_WIDTH:  snprintf(val, sizeof val, "%.1f", beam_px); break;
+        case MI_BRIGHT: snprintf(val, sizeof val, "%.1f", gamma_gain); break;
+        case MI_AUTOF:  snprintf(val, sizeof val, "%s", autofire_enabled ? "OUI" : "NON"); break;
+        case MI_AFHZ:   snprintf(val, sizeof val, "%d/S", (int)autofire_hz); break;
+        case MI_SENS:   snprintf(val, sizeof val, "%.2f", mouse_sens); break;
+        case MI_INVERT: snprintf(val, sizeof val, "%s", invert_pitch ? "OUI" : "NON"); break;
+        default: val[0] = '\0'; break;
+        }
+        if (i == menu_sel) {
+            vfont_text(vx - 24.0f, y, sc, C_SEL, "<");
+            vfont_text(vx, y, sc, C_SEL, val);
+            vfont_text(vx + vfont_width(sc, val) + 10.0f, y, sc, C_SEL, ">");
+        } else {
+            vfont_text(vx, y, sc, C_VALUE, val);
+        }
+    }
+
+    vfont_text(-vfont_width(2.6f, "FLECHES: REGLER   ENTREE: VALIDER   F1/ECHAP: FERMER") * 0.5f,
+               -288.0f, 2.6f, C_DIM,
+               "FLECHES: REGLER   ENTREE: VALIDER   F1/ECHAP: FERMER");
 }
 
 /* ------------------------------------------------------------------ */
@@ -848,7 +1193,17 @@ void plat_audio_push(const int16_t *pcm, int frames)
     }
     if (wav_file) fwrite(pcm, 2, (size_t)frames, wav_file);
     audio_frames += (unsigned long)frames;
-    if (audio_open_ok) stream_push(pcm, frames);
+    /* stream_push truncates anything over STREAM_BLOCK_FRAMES and drops the
+       rest; the pump hands over up to 2048 frames whenever a loop iteration
+       covers more than ~11.6 ms, so feed it in block-sized slices. */
+    if (audio_open_ok) {
+        while (frames > 0) {
+            int n = frames > STREAM_BLOCK_FRAMES ? STREAM_BLOCK_FRAMES : frames;
+            stream_push(pcm, n);
+            pcm += n;
+            frames -= n;
+        }
+    }
 }
 
 void plat_audio_close(void)
@@ -995,7 +1350,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (quit_after_ms > 0.0 && now - t_start >= quit_after_ms) g_quit = 1;
 
         if (!turbo) {
-            if (present_pending && hWnd && !hidden_mode) present_now();
+            if (!hidden_mode) menu_update();
+            if (hWnd && !hidden_mode && (present_pending || present_monitor || menu_active)) present_now();
             if (now - stat_t >= 1000.0) {
                 char s[400];
                 double dt = (now - stat_t) / 1000.0;
@@ -1006,6 +1362,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                          (double)(st.passes - st0.passes) / dt, (double)(st.irqs - st0.irqs) / dt, st.points, st.phase,
                          test_latch ? "  SELF TEST SWITCH ON" : "", sndtest_latch ? "  SOUND TEST ON" : "");
                 if (!hidden_mode) set_window_title(s);
+                {
+                    char ss[160];
+                    stream_stats(ss, sizeof ss);
+                    if (!strstr(ss, " 0 starved") || !strstr(ss, " 0 flushed"))
+                        LOG_INFO("%s", ss);
+                }
                 stat_t = now;
                 st0 = st;
                 frames0 = n_frames_in;

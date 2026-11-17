@@ -909,7 +909,14 @@ void stream_push(const int16_t *pcm, int frames)
 	if (state.BuffersQueued > g_sstat.depth_max) g_sstat.depth_max = state.BuffersQueued;
 	g_sstat.depth_sum += state.BuffersQueued;
 	g_sstat.pushes++;
-	if (g_stream.started && state.BuffersQueued == 0) g_sstat.starved++;
+	if (g_stream.started && state.BuffersQueued == 0) {
+		g_sstat.starved++;
+		/* The cushion is gone (a stall drained it). The producer only ever
+		   matches the drain rate, so a lost cushion never rebuilds on its
+		   own and every later jitter is an audible gap. Re-prime once: one
+		   short, deliberate gap of silence buys the margin back. */
+		stream_prime(frames);
+	}
 	if (state.BuffersQueued >= STREAM_SLOTS - 1) {
 		g_sstat.flushes++;
 		/* The caller has fallen behind. XAudio2 reads each queued buffer

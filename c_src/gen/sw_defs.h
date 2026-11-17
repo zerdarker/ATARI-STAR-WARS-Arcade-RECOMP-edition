@@ -544,11 +544,13 @@
 #define MS_GDBC            0x01C0
 #define VGRW4              0x01C8
 #define MAX                0x01E0
-#define VGLIMR             0x01E0
+#define VGLIMR             0x02DA  /* 16:9 widescreen: +730, deborde du bord (original 4:3: 0x01E0 = +480) */
+#define VGHUDR             0x028A  /* 16:9: ancre HUD droite +650, dans l'ecran (le HUD ne suit pas VGLIMR) */
+#define VGHUDL             0xFD76  /* 16:9: ancre HUD gauche -650, dans l'ecran (le HUD ne suit pas VGLIML) */
 #define VGRW3              0x01E0
 #define XSCRN              0x01E0
 #define VGRW2              0x01F8
-#define VGEDGR             0x01FE
+#define VGEDGR             0x02A8  /* 16:9 widescreen: +680 (original 4:3: 0x01FE = +510) */
 #define GDS_MNT            0x0200
 #define VGRW1              0x0210
 #define YSCRN              0x0210
@@ -3091,8 +3093,8 @@
 #define D_AVGR             0xFDD7
 #define VGLIMB             0xFDD8
 #define D_AVGI             0xFDF2
-#define VGEDGL             0xFE02
-#define VGLIML             0xFE20
+#define VGEDGL             0xFD58  /* 16:9 widescreen: -680 (original 4:3: 0xFE02 = -510) */
+#define VGLIML             0xFD26  /* 16:9 widescreen: -730, deborde du bord (original 4:3: 0xFE20 = -480) */
 #define TAVGI              0xFE37
 #define D_MTRX             0xFE4F
 #define TAVGIZ             0xFE4F
