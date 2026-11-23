@@ -32,6 +32,8 @@ extern "C" {
 }
 #include "platform/windows/miniz.h"
 
+extern "C" int plat_wide;                   /* 1 = 16:9 (plat_win.c, the options menu) */
+
 namespace esb {
 
 #define CPU_HZ      1512000.0
@@ -129,6 +131,22 @@ static void widescreen_patch(void)
         put16(rom_slap, e + 4, (uint16_t)(l - shift[i]));
         put16(rom_slap, e + 6, (uint16_t)(r + shift[i]));
     }
+}
+
+/* The ROM as loaded (4:3); 16:9 is it with widescreen_patch().  The options
+ * menu can switch while the game runs, so the banks are rewritten in place
+ * (the board keeps pointers to them). */
+static std::vector<uint8_t> tube_main, tube_bank1, tube_bank2, tube_slap;
+static int patched_wide = -1;
+
+static void set_screen(void)
+{
+    memcpy(rom_main.data(), tube_main.data(), rom_main.size());
+    memcpy(rom_bank1.data(), tube_bank1.data(), rom_bank1.size());
+    memcpy(rom_bank2.data(), tube_bank2.data(), rom_bank2.size());
+    memcpy(rom_slap.data(), tube_slap.data(), rom_slap.size());
+    if (plat_wide) widescreen_patch();
+    patched_wide = plat_wide;
 }
 
 static int load_esb(void)
@@ -325,7 +343,8 @@ int sw_app_init(const sw_app_opts *o)
 {
     opt = *o;
     if (load_esb()) return 1;
-    widescreen_patch();
+    tube_main = rom_main; tube_bank1 = rom_bank1; tube_bank2 = rom_bank2; tube_slap = rom_slap;
+    set_screen();
     roms.main_rom = rom_main.data();
     roms.bank1 = rom_bank1.data();
     roms.bank2 = rom_bank2.data();
@@ -403,6 +422,7 @@ void sw_app_run(double now_ms)
         if (want <= (double)now_cyc) return;
         target = (uint64_t)want;
     }
+    if (patched_wide != plat_wide) set_screen();
     run_until(target);
     audio_pump();
 }

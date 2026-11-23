@@ -140,11 +140,12 @@ uint8_t plat_dsw1(void) { return dsw1; }
 #define AVG_W      250.0f
 #define AVG_H      280.0f
 #define PIC_HH     300.0f                      /* picture half-height, units */
-#define PIC_HW     (PIC_HH * 16.0f / 9.0f)     /* 16:9 widescreen (original: * 4/3) */
+int plat_wide = 1;                             /* 1 = 16:9 widescreen, 0 = the 4:3 tube; the games read it too */
+#define PIC_HW     (PIC_HH * (plat_wide ? 16.0f / 9.0f : 4.0f / 3.0f))
 /* 16:9 window in AVG units: the 4:3 tube spans x 0..250 (centre 125); the wide
  * window keeps that centre and scale and shows 16/9 / (4/3) = 4/3 more width. */
 #define AVG_CX     (AVG_W * 0.5f)
-#define AVG_HWX    (AVG_CX * (16.0f / 9.0f) / (4.0f / 3.0f))
+#define AVG_HWX    (plat_wide ? AVG_CX * (16.0f / 9.0f) / (4.0f / 3.0f) : AVG_CX)
 #define AVG_XMIN   (AVG_CX - AVG_HWX)
 #define AVG_XMAX   (AVG_CX + AVG_HWX)
 
@@ -203,7 +204,7 @@ static int  g_quit;
 
 int SCREEN_W = 960;
 int SCREEN_H = 720;
-int DESIGN_W = 1280;                           /* 16:9 widescreen (original: 960, 4:3) */
+int DESIGN_W = 1280;                           /* 16:9 widescreen; 960 in 4:3 (set_wide) */
 int DESIGN_H = 720;
 
 HWND win_get_window(void) { return hWnd; }
@@ -330,6 +331,16 @@ static void update_beam_width(void)
     if ((double)SCREEN_H * DESIGN_W < vw * DESIGN_H)
         vw = (double)SCREEN_H * DESIGN_W / (double)DESIGN_H;
     update_beam_width_for(vw);
+}
+
+/* 16:9 <-> 4:3, live: the picture here, the game's own edges in its code. */
+static void set_wide(int w)
+{
+    plat_wide = w != 0;
+    DESIGN_W = plat_wide ? 1280 : 960;
+    ViewOrthoScaled(SCREEN_W, SCREEN_H, DESIGN_W, DESIGN_H);
+    update_beam_width();
+    mat4_ortho(beam_proj, -PIC_HW, PIC_HW, -PIC_HH, PIC_HH, -1.0f, 1.0f);
 }
 
 /* ---- mouse capture ---- */
@@ -629,6 +640,9 @@ static int plat_init(void)
     set_config_int("main", "present_monitor", present_monitor);
     start_fullscreen = get_config_int("main", "fullscreen", 0) != 0;
     set_config_int("main", "fullscreen", start_fullscreen);
+    plat_wide = get_config_int("main", "widescreen", 1) != 0;
+    set_config_int("main", "widescreen", plat_wide);
+    DESIGN_W = plat_wide ? 1280 : 960;
 
     dsw0 = (uint8_t)get_config_int("dips", "dsw0", game_esb ? 0xF3 : 0x84);   /* factory settings */
     dsw1 = (uint8_t)get_config_int("dips", "dsw1", 0x02);
@@ -1027,7 +1041,7 @@ static float vfont_width(float sc, const char *s) { return (float)strlen(s) * 6.
 /* ---- the menu itself ---- */
 
 enum {
-    MI_PRESET, MI_FULL, MI_VSYNC, MI_FLUID, MI_PHOS, MI_WIDTH,
+    MI_PRESET, MI_FULL, MI_SCREEN, MI_VSYNC, MI_FLUID, MI_PHOS, MI_WIDTH,
     MI_BRIGHT, MI_AUTOF, MI_AFHZ, MI_SENS, MI_INVERT, MI_PLAY, MI_COUNT
 };
 
@@ -1041,6 +1055,7 @@ static void menu_save(void)
     set_config_int("main", "vsync", swap_mode);
     set_config_int("main", "present_monitor", present_monitor);
     set_config_int("main", "fullscreen", start_fullscreen);
+    set_config_int("main", "widescreen", plat_wide);
     set_config_float("vector", "phosphor_ms", (float)ph_tau);
     set_config_float("vector", "linewidth", beam_px);
     set_config_float("vector", "brightness", (float)gamma_gain);
@@ -1054,6 +1069,7 @@ static void menu_apply_preset(int which)
 {
     menu_preset = which;
     if (which == 0) {               /* arcade 1983: la borne telle quelle */
+        set_wide(0);
         swap_mode = SetSwapMode(1);
         present_monitor = 0;
         ph_tau = 0.0;
@@ -1061,6 +1077,7 @@ static void menu_apply_preset(int which)
         gamma_gain = 1.6;
         autofire_enabled = 0;
     } else if (which == 1) {        /* pc moderne: 120Hz+, lueur douce, tir auto */
+        set_wide(1);
         swap_mode = SetSwapMode(1);
         present_monitor = 1;
         ph_tau = 12.0;
@@ -1083,6 +1100,9 @@ static void menu_adjust(int dir)
     case MI_FULL:
         ToggleFullscreen();
         start_fullscreen = is_fullscreen;
+        break;
+    case MI_SCREEN:
+        set_wide(!plat_wide);
         break;
     case MI_VSYNC:
         swap_mode = SetSwapMode(!swap_mode);
@@ -1169,7 +1189,7 @@ static void menu_update(void)
 static void menu_emit(void)
 {
     static const char *labels[MI_COUNT] = {
-        "PRESET", "FULLSCREEN", "VSYNC", "SMOOTHNESS", "PHOSPHOR",
+        "PRESET", "FULLSCREEN", "SCREEN", "VSYNC", "SMOOTHNESS", "PHOSPHOR",
         "LINE WIDTH", "BRIGHTNESS", "AUTOFIRE", "FIRE RATE",
         "MOUSE", "INVERT PITCH", "PLAY"
     };
@@ -1178,7 +1198,7 @@ static void menu_emit(void)
     const rgb_t C_VALUE = MAKE_RGB(60, 220, 255);
     const rgb_t C_SEL   = MAKE_RGB(255, 230, 50);
     const rgb_t C_DIM   = MAKE_RGB(170, 40, 40);
-    const float sc = 3.4f, step = 30.0f;
+    const float sc = 3.4f, step = 28.0f;
     const float lx = -290.0f, vx = 60.0f;
     float y;
     char val[48];
@@ -1189,7 +1209,8 @@ static void menu_emit(void)
         const char *t1 = "OPTIONS";
         float s1 = 6.0f;
         vfont_text(-vfont_width(s1, t1) * 0.5f, 232.0f, s1, C_TITLE, t1);
-        const char *t2 = game_esb ? "THE EMPIRE STRIKES BACK 16:9" : "STAR WARS 16:9";
+        char t2[48];
+        snprintf(t2, sizeof t2, "%s %s", game_esb ? "THE EMPIRE STRIKES BACK" : "STAR WARS", plat_wide ? "16:9" : "4:3");
         vfont_text(-vfont_width(2.8f, t2) * 0.5f, 207.0f, 2.8f, C_LABEL, t2);
     }
 
@@ -1209,10 +1230,11 @@ static void menu_emit(void)
         vfont_text(lx, y, sc, lc, labels[i]);
         switch (i) {
         case MI_PRESET:
-            snprintf(val, sizeof val, "%s", menu_preset == 0 ? "ARCADE 1983"
+            snprintf(val, sizeof val, "%s", menu_preset == 0 ? (game_esb ? "ARCADE 1985" : "ARCADE 1983")
                      : menu_preset == 1 ? "MODERN PC" : "CUSTOM");
             break;
         case MI_FULL:   snprintf(val, sizeof val, "%s", is_fullscreen ? "ON" : "OFF"); break;
+        case MI_SCREEN: snprintf(val, sizeof val, "%s", plat_wide ? "16:9" : "4:3"); break;
         case MI_VSYNC:  snprintf(val, sizeof val, "%s", swap_mode ? "ON" : "OFF"); break;
         case MI_FLUID:  snprintf(val, sizeof val, "%s", present_monitor ? "DISPLAY 120HZ+" : "ORIGINAL"); break;
         case MI_PHOS:   snprintf(val, sizeof val, "%d MS", (int)ph_tau); break;

@@ -42,9 +42,9 @@ Windows SmartScreen or an antivirus may ask you to confirm the first launch.
 
 | | |
 |---|---|
-| **True 16:9** | The games' own field is widened: 3D objects, stars and lasers use the full width, the cockpit guns sit at the edges of the wider picture, lasers start from the moved guns. |
+| **True 16:9** | The games' own field is widened: 3D objects, stars and lasers use the full width, the cockpit guns sit at the edges of the wider picture, lasers start from the moved guns. The **SCREEN** line of the options menu switches between 16:9 and the original 4:3, live. |
 | **Vector options menu** | Press **F1** (also shown at launch). Drawn with the game beam and an AVG-style stroke font. |
-| **Presets** | `ARCADE 1983` (original timing, no phosphor trail, no autofire) and `MODERN PC` (120 Hz+ presentation, short phosphor trail, autofire). Any change shows `CUSTOM`. |
+| **Presets** | `ARCADE 1983` / `ARCADE 1985` (the cabinet: original 4:3 screen, original timing, no phosphor trail, no autofire) and `MODERN PC` (16:9, 120 Hz+ presentation, short phosphor trail, autofire). Any change shows `CUSTOM`. |
 | **Smoothness** | `DISPLAY 120HZ+` redraws at the monitor's refresh rate and recomputes the phosphor decay every frame; game speed is unchanged. |
 | **Autofire** | Hold a trigger to fire repeatedly; rate 1–30 shots/s. |
 | **Controllers** | Mouse, keyboard, gamepads and flight yokes (GRS Star Wars Flight Yoke included). Every connected controller is read; buttons are remappable in the `.ini`. |

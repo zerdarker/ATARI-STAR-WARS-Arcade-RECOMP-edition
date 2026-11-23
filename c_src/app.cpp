@@ -112,12 +112,21 @@ static int load_zip(void)
 }
 
 /* 16:9: the four cockpit guns are VOFF moves in the vector ROM; +-480 -> +-650
- * puts them at the edges of the wider picture (same values set_guns.py writes). */
+ * puts them at the edges of the wider picture (same values set_guns.py writes).
+ * Follows plat_wide, which the options menu can change while the game runs. */
+extern "C" int plat_wide;
+static int guns_wide = -1;
+
 static void widescreen_guns(void)
 {
-    static const struct { uint16_t at, x; } gun[] = { { 0x341C, 0x028A }, { 0x34B6, 0x028A },
-                                                       { 0x35CE, 0x1D76 }, { 0x3668, 0x1D76 } };
-    for (const auto &g : gun) { rom_main[g.at] = (uint8_t)(g.x >> 8); rom_main[g.at + 1] = (uint8_t)g.x; }
+    static const struct { uint16_t at, wide, tube; } gun[] = {
+        { 0x341C, 0x028A, 0x01E0 }, { 0x34B6, 0x028A, 0x01E0 },
+        { 0x35CE, 0x1D76, 0x1E20 }, { 0x3668, 0x1D76, 0x1E20 } };
+    guns_wide = plat_wide;
+    for (const auto &g : gun) {
+        uint16_t x = plat_wide ? g.wide : g.tube;
+        rom_main[g.at] = (uint8_t)(x >> 8); rom_main[g.at + 1] = (uint8_t)x;
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -352,6 +361,7 @@ void sw_app_run(double now_ms)
         target = (uint64_t)want;
     }
     if (reset_request) { reset_request = 0; port_reset(); }
+    if (guns_wide != plat_wide) widescreen_guns();
     port_run_until(target);
     audio_pump();
 }
