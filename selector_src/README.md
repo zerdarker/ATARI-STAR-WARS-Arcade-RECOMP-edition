@@ -1,6 +1,6 @@
 # selector_src — the game selection page
 
-The page `StarWarsTrilogy.exe` opens when it is run without `--game`: Star Wars
+The page `AtariStarWarsArcadeRE.exe` opens when it is run without `--game`: Star Wars
 and The Empire Strikes Back, each title logo in a frame, drawn with the games'
 own beam renderer and options-menu font, plus a **GITHUB PAGE** and an
 **UPDATE** button. Arrows, mouse or stick choose; Enter, a click or a button
@@ -19,7 +19,7 @@ with a 2.5 s pause. It stops while a game runs. `[main] music=0` turns it off.
 
 **UPDATE** reads `releases/latest` of the GitHub repository (`REPO` in
 `selector.c`), compares its tag with `TRILOGY_VERSION`, downloads the release
-zip, takes `StarWarsTrilogy.exe` out of it, renames the running exe to `.old`,
+zip, takes `AtariStarWarsArcadeRE.exe` out of it, renames the running exe to `.old`,
 puts the new one in its place and restarts. It needs the repository to be
 public. `..\trilogy_src\tests\check_release.c` exercises it against a public
 repository.

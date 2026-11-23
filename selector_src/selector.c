@@ -314,7 +314,7 @@ static void load_games(void)
 }
 
 /* ---- GitHub page and update ---- */
-#define TRILOGY_VERSION "1.4"
+#define TRILOGY_VERSION "1.5"
 #ifndef REPO
 #define REPO            "zerdarker/ATARI-STAR-WARS-Arcade-RECOMP-edition"
 #endif
@@ -344,7 +344,7 @@ static int https_get(const char *url, char **out, size_t *len)
     *out = (char *)malloc(cap);
     *len = 0;
     if (!*out) return 1;
-    s = WinHttpOpen(L"StarWarsTrilogy/" TRILOGY_VERSION, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
+    s = WinHttpOpen(L"AtariStarWarsArcadeRE/" TRILOGY_VERSION, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
     if (s) c = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
     if (c) r = WinHttpOpenRequest(c, L"GET", path, NULL, NULL, NULL, WINHTTP_FLAG_SECURE);
     if (r && WinHttpSendRequest(r, L"Accept: application/vnd.github+json\r\n", (DWORD)-1, NULL, 0, 0, 0) &&
@@ -424,7 +424,7 @@ static DWORD WINAPI check_thread(LPVOID unused)
     return 0;
 }
 
-/* Checks the latest GitHub release; if newer, puts its StarWarsTrilogy.exe in
+/* Checks the latest GitHub release; if newer, puts its AtariStarWarsArcadeRE.exe in
  * place of this one (the caller restarts).  ROMs, settings and scores are
  * untouched.  shortcut: trusts GitHub over HTTPS, no signature check; sign the
  * exe to do better. */
@@ -454,7 +454,8 @@ static int update(void)
             size_t k;
             mz_zip_reader_get_filename(&z, i, name, sizeof name);
             k = strlen(name);
-            if (k >= 19 && !_stricmp(name + k - 19, "StarWarsTrilogy.exe"))
+            if ((k >= 25 && !_stricmp(name + k - 25, "AtariStarWarsArcadeRE.exe")) ||
+                (k >= 19 && !_stricmp(name + k - 19, "StarWarsTrilogy.exe")))   /* its name up to v1.4 */
                 exe = mz_zip_reader_extract_to_heap(&z, i, &n, 0);
         }
         mz_zip_reader_end(&z);
@@ -669,12 +670,12 @@ int selector_main(HINSTANCE hInstance)
     wc.lpszClassName = L"StarWarsSelection";
     RegisterClass(&wc);
     AdjustWindowRect(&wr, style, FALSE);
-    hWnd = CreateWindow(L"StarWarsSelection", L"Star Wars Arcade", style, CW_USEDEFAULT, CW_USEDEFAULT,
+    hWnd = CreateWindow(L"StarWarsSelection", L"Atari Star Wars Arcade RE", style, CW_USEDEFAULT, CW_USEDEFAULT,
                         wr.right - wr.left, wr.bottom - wr.top, NULL, NULL, hInstance, NULL);
     plat_set_window(hWnd);
-    if (!hWnd || !CreateGLContext()) { MessageBoxA(NULL, "No OpenGL window.", "Star Wars Arcade", MB_OK); return 1; }
+    if (!hWnd || !CreateGLContext()) { MessageBoxA(NULL, "No OpenGL window.", "Atari Star Wars Arcade RE", MB_OK); return 1; }
     SetSwapMode(1);
-    if (!beam_init()) { MessageBoxA(NULL, "The beam renderer needs OpenGL 3.3.", "Star Wars Arcade", MB_OK); return 1; }
+    if (!beam_init()) { MessageBoxA(NULL, "The beam renderer needs OpenGL 3.3.", "Atari Star Wars Arcade RE", MB_OK); return 1; }
     beam_set_color_mode(1);
     mat4_ortho(beam_proj, -PIC_HW, PIC_HW, -PIC_HH, PIC_HH, -1.0f, 1.0f);
     RawInput_Initialize(hWnd);

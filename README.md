@@ -17,9 +17,9 @@ vector game-selection page.
 
 ## Download
 
-A ready-to-play package — **one program, `StarWarsTrilogy.exe`**, with an empty
+A ready-to-play package — **one program, `AtariStarWarsArcadeRE.exe`**, with an empty
 `roms` folder and **no ROMs** — is on the [Releases](../../releases) page. Unzip
-it anywhere, put your ROM sets in `roms`, run `StarWarsTrilogy.exe`.
+it anywhere, put your ROM sets in `roms`, run `AtariStarWarsArcadeRE.exe`.
 
 The selection page has a **GITHUB PAGE** button and an **UPDATE** button: it
 checks the latest release here and, when there is a newer one, replaces the exe
@@ -70,7 +70,7 @@ where.
 ## Folder layout (ready to play)
 
 ```
-StarWarsTrilogy.exe              <- run it: the selection page
+AtariStarWarsArcadeRE.exe        <- run it: the selection page
 roms/
     starwars.zip                 <- your ROM set
     esb.zip                      <- your ROM set
@@ -79,7 +79,7 @@ roms/
 Created next to the exe as you play: `starwars.ini` / `esb.ini` /
 `selection.ini` (settings), `starwars.nv` / `esb.nv` (high scores), `logos/`
 (the title logos and the theme, drawn by the games on first run).
-`StarWarsTrilogy.exe --game starwars` or `--game esb` starts a game directly.
+`AtariStarWarsArcadeRE.exe --game starwars` or `--game esb` starts a game directly.
 
 ## Controls
 
@@ -115,7 +115,7 @@ deadzone=19
 Visual Studio 2022 (Build Tools are enough), x64:
 
 ```
-cmd /c trilogy_src\build_trilogy.bat    -> trilogy_src\StarWarsTrilogy.exe
+cmd /c trilogy_src\build_trilogy.bat    -> trilogy_src\AtariStarWarsArcadeRE.exe
 ```
 
 One exe from three parts on one platform layer (`c_src/platform/windows`):

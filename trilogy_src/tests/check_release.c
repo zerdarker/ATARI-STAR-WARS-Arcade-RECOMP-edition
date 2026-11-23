@@ -1,6 +1,6 @@
 /* Checks update(): latest release, version compare, download (with GitHub's
  * redirect), zip.  Pointed at a public repo whose zips have no
- * StarWarsTrilogy.exe, so it must end in "UPDATE FAILED" and replace nothing.
+ * AtariStarWarsArcadeRE.exe, so it must end in "UPDATE FAILED" and replace nothing.
  * Build and run: build_check_release.bat */
 #define REPO "cli/cli"
 #include "../../selector_src/selector.c"

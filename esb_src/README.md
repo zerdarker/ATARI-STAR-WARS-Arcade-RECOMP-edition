@@ -3,7 +3,7 @@
 The real ESB ROMs (MAME set `esb`, read from `roms\esb.zip` by CRC; none
 included) on two 6809 cores. It started as a copy of
 [`../emu_src`](../emu_src/README.md) (`sw_emu`, the same hardware) and is part
-of `StarWarsTrilogy.exe` (`trilogy_src\build_trilogy.bat`), on the platform
+of `AtariStarWarsArcadeRE.exe` (`trilogy_src\build_trilogy.bat`), on the platform
 layer of [`../c_src`](../c_src/README.md); `--game esb` selects it.
 
 Everything here is in C++ namespace `esb`, so it links beside the Star Wars C
@@ -18,5 +18,5 @@ memory at load time:
   (the slapstic sequence depends on them);
 - `emu_main.cpp` — loading by CRC, `widescreen_patch()`.
 
-Test: `StarWarsTrilogy.exe --game esb --turbo --hidden --no-nvram --script esb_src\tests\play.txt --passes 5000`
+Test: `AtariStarWarsArcadeRE.exe --game esb --turbo --hidden --no-nvram --script esb_src\tests\play.txt --passes 5000`
 (here a script "pass" is a picture: ESB's mainline is not Star Wars' `$602F`).

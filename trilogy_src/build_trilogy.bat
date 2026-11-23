@@ -1,5 +1,5 @@
 @echo off
-rem Builds StarWarsTrilogy.exe: Star Wars (the C port, ..\c_src), The Empire
+rem Builds AtariStarWarsArcadeRE.exe: Star Wars (the C port, ..\c_src), The Empire
 rem Strikes Back (its ROM on 6809 cores, ..\esb_src) and the selection page
 rem (..\selector_src) on one platform layer (..\c_src\platform\windows),
 rem with the C runtime linked in (/MT): one file, no DLL beside it.
@@ -31,9 +31,9 @@ cl %CF% /W3 /std:c++17 /EHsc /Iesb_src /Iesb_src\cpu /Ic_src /c esb_src\cpu\cpu_
 
 rem ---- the selection page and the platform layer ----
 cl %CF% /W3 /std:c11 /DUNICODE /D_UNICODE /I%FW% /c selector_src\selector.c /Fo%O%\sel\ || exit /b 1
-echo === StarWarsTrilogy.exe
+echo === AtariStarWarsArcadeRE.exe
 cl %CF% /W4 /std:c11 /DUNICODE /D_UNICODE /Ic_src /Fo%O%\ %FW%\plat_win.c ^
    %O%\fw\*.obj %O%\chips\*.obj %O%\gen\*.obj %O%\gen_snd\*.obj %O%\sw\*.obj %O%\esb\*.obj %O%\sel\*.obj ^
-   /Fe:trilogy_src\StarWarsTrilogy.exe ^
+   /Fe:trilogy_src\AtariStarWarsArcadeRE.exe ^
    /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib winmm.lib ole32.lib dwmapi.lib opengl32.lib shell32.lib winhttp.lib || exit /b 1
 echo TRILOGY BUILD OK
