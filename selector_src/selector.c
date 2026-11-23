@@ -314,7 +314,7 @@ static void load_games(void)
 }
 
 /* ---- GitHub page and update ---- */
-#define TRILOGY_VERSION "1.1"
+#define TRILOGY_VERSION "1.2"
 #ifndef REPO
 #define REPO            "zerdarker/ATARI-STAR-WARS-Arcade-RECOMP-edition"
 #endif
@@ -379,41 +379,70 @@ static int newer(const char *a, const char *b)
     return a1 != b1 ? a1 > b1 : a2 != b2 ? a2 > b2 : a3 > b3;
 }
 
-/* Checks the latest GitHub release; if newer, puts its StarWarsTrilogy.exe in
- * place of this one (the caller restarts).  ROMs, settings and scores are
- * untouched.  shortcut: trusts GitHub over HTTPS, no signature check; sign the
- * exe to do better. */
-static int update(void)
+/* The latest GitHub release: its tag (without a leading v) and its zip.  0 = ok. */
+static int latest_release(char tag[32], char url[1024])
 {
-    char *json = NULL, *zipdata = NULL, tag[32] = "", url[1024] = "", self[MAX_PATH], old[MAX_PATH + 8], newp[MAX_PATH + 8];
-    size_t len, zlen, n = 0;
+    char *json = NULL;
+    size_t len;
     const char *p, *q;
-    mz_zip_archive z;
-    void *exe = NULL;
-    mz_uint i;
-    int ok = 0;
-
-    if (https_get("https://api.github.com/repos/" REPO "/releases/latest", &json, &len)) {
-        snprintf(status_msg, sizeof status_msg, "UPDATE CHECK FAILED");
-        return 0;
-    }
+    tag[0] = url[0] = 0;
+    if (https_get("https://api.github.com/repos/" REPO "/releases/latest", &json, &len)) return 1;
     p = strstr(json, "\"tag_name\"");
     if (p && (p = strchr(p + 10, '"')) != NULL) {
         q = strchr(++p, '"');
-        if (q && q - p < 31) { memcpy(tag, p, (size_t)(q - p)); tag[q - p] = 0; }
+        if (*p == 'v' || *p == 'V') p++;
+        if (q && q > p && q - p < 31) { memcpy(tag, p, (size_t)(q - p)); tag[q - p] = 0; }
     }
     for (p = json; (p = strstr(p, "\"browser_download_url\"")) != NULL; p = q) {
         p = strchr(p + 22, '"');
         if (!p || !(q = strchr(++p, '"'))) break;
-        if (q - p > 4 && q - p < (int)sizeof url && !_strnicmp(q - 4, ".zip", 4)) {
+        if (q - p > 4 && q - p < 1024 && !_strnicmp(q - 4, ".zip", 4)) {
             memcpy(url, p, (size_t)(q - p));
             url[q - p] = 0;
             break;
         }
     }
     free(json);
-    if (!tag[0] || !newer(tag + (tag[0] == 'v' || tag[0] == 'V'), TRILOGY_VERSION)) {
-        snprintf(status_msg, sizeof status_msg, tag[0] ? "UP TO DATE - V" TRILOGY_VERSION : "UPDATE CHECK FAILED");
+    return !tag[0];
+}
+
+/* At startup, in the background: is there a newer release?  The page makes the
+ * UPDATE button blink when there is. */
+static volatile LONG update_ready;
+static char new_version[32];
+
+static DWORD WINAPI check_thread(LPVOID unused)
+{
+    char tag[32], url[1024];
+    (void)unused;
+    int rc = latest_release(tag, url);
+    LOG_INFO("update check: %s (latest %s, this %s)", rc ? "no answer" : "ok", tag, TRILOGY_VERSION);
+    if (!rc && newer(tag, TRILOGY_VERSION)) {
+        snprintf(new_version, sizeof new_version, "%s", tag);
+        InterlockedExchange(&update_ready, 1);
+    }
+    return 0;
+}
+
+/* Checks the latest GitHub release; if newer, puts its StarWarsTrilogy.exe in
+ * place of this one (the caller restarts).  ROMs, settings and scores are
+ * untouched.  shortcut: trusts GitHub over HTTPS, no signature check; sign the
+ * exe to do better. */
+static int update(void)
+{
+    char *zipdata = NULL, tag[32], url[1024], self[MAX_PATH], old[MAX_PATH + 8], newp[MAX_PATH + 8];
+    size_t zlen, n = 0;
+    mz_zip_archive z;
+    void *exe = NULL;
+    mz_uint i;
+    int ok = 0;
+
+    if (latest_release(tag, url)) {
+        snprintf(status_msg, sizeof status_msg, "UPDATE CHECK FAILED");
+        return 0;
+    }
+    if (!newer(tag, TRILOGY_VERSION)) {
+        snprintf(status_msg, sizeof status_msg, "UP TO DATE - V" TRILOGY_VERSION);
         return 0;
     }
     LOG_INFO("update: %s from %s", tag, url);
@@ -486,12 +515,15 @@ static rgb_t dim(rgb_t c, float k)
     return MAKE_RGB((int)(RGB_RED(c) * k), (int)(RGB_GREEN(c) * k), (int)(RGB_BLUE(c) * k));
 }
 
-static void button(float cx, float y, const char *label, int on, float pulse)
+static void button(float cx, float y, const char *label, int on, float pulse, int alert, double t)
 {
     const float w = 300.0f, h = 34.0f;
     rgb_t c = on ? MAKE_RGB((int)(255 * pulse), (int)(230 * pulse), (int)(50 * pulse)) : MAKE_RGB(40, 60, 200);
+    if (alert)                                            /* a new version: blink red / yellow */
+        c = ((int)(t * 3.0) & 1) ? MAKE_RGB(255, 40, 40) : MAKE_RGB(255, 230, 50);
     frame_box(cx - w * 0.5f, y - h * 0.5f, cx + w * 0.5f, y + h * 0.5f, c);
-    vfont_center(cx, y - 7.0f, 2.4f, on ? c : MAKE_RGB(40, 200, 60), label);
+    if (alert) frame_box(cx - w * 0.5f - 6.0f, y - h * 0.5f - 6.0f, cx + w * 0.5f + 6.0f, y + h * 0.5f + 6.0f, c);
+    vfont_center(cx, y - 7.0f, 2.4f, on || alert ? c : MAKE_RGB(40, 200, 60), label);
 }
 
 static void draw(int sel, double t, float dt)
@@ -536,9 +568,17 @@ static void draw(int sel, double t, float dt)
         vfont_center(cx, y0 + 30.0f, fminf(3.6f, (bw - 40.0f) / (6.0f * (float)strlen(g->title))),
                      i == sel ? C_SEL : dim(C_TEXT, 0.6f), g->title);
     }
-    button(-170.0f, -212.0f, "GITHUB PAGE", sel == 2, pulse);
-    button(170.0f, -212.0f, "UPDATE", sel == 3, pulse);
-    if (status_msg[0]) vfont_center(0.0f, -250.0f, 2.2f, C_SEL, status_msg);
+    button(-170.0f, -212.0f, "GITHUB PAGE", sel == 2, pulse, 0, t);
+    if (update_ready) {
+        char label[48], msg[96];
+        snprintf(label, sizeof label, "UPDATE TO V%s", new_version);
+        button(170.0f, -212.0f, label, sel == 3, pulse, 1, t);
+        snprintf(msg, sizeof msg, "NEW VERSION V%s AVAILABLE", new_version);
+        if (!status_msg[0]) vfont_center(0.0f, -262.0f, 1.8f, C_SEL, msg);
+    } else {
+        button(170.0f, -212.0f, "UPDATE", sel == 3, pulse, 0, t);
+    }
+    if (status_msg[0]) vfont_center(0.0f, -262.0f, 1.8f, C_SEL, status_msg);
     vfont_center(0.0f, -282.0f, 2.2f, C_DIM, "ARROWS: CHOOSE    ENTER / FIRE: SELECT    ESC: QUIT");
     vfont_center(470.0f, -282.0f, 2.2f, C_DIM, "V" TRILOGY_VERSION);
     beam_draw_all(beam_proj);
@@ -659,6 +699,7 @@ int selector_main(HINSTANCE hInstance)
     SetForegroundWindow(hWnd);
     if (start_full) ToggleFullscreen();
     music(1);
+    CloseHandle(CreateThread(NULL, 0, check_thread, NULL, 0, NULL));
     timeBeginPeriod(1);
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&t0);
