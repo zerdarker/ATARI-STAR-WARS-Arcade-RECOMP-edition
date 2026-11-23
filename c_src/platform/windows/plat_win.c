@@ -1188,12 +1188,12 @@ static void menu_emit(void)
     {
         const char *t1 = "OPTIONS";
         float s1 = 6.0f;
-        vfont_text(-vfont_width(s1, t1) * 0.5f, 225.0f, s1, C_TITLE, t1);
+        vfont_text(-vfont_width(s1, t1) * 0.5f, 232.0f, s1, C_TITLE, t1);
         const char *t2 = game_esb ? "THE EMPIRE STRIKES BACK 16:9" : "STAR WARS 16:9";
-        vfont_text(-vfont_width(2.8f, t2) * 0.5f, 200.0f, 2.8f, C_LABEL, t2);
+        vfont_text(-vfont_width(2.8f, t2) * 0.5f, 207.0f, 2.8f, C_LABEL, t2);
     }
 
-    y = 160.0f;
+    y = 135.0f;
     for (i = 0; i < MI_COUNT; i++, y -= step) {
         rgb_t lc = i == menu_sel ? C_SEL : C_LABEL;
         if (i == MI_PLAY) {
