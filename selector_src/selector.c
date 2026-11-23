@@ -316,7 +316,7 @@ static void load_games(void)
 /* ---- GitHub page and update ---- */
 #define TRILOGY_VERSION "1.0"
 #ifndef REPO
-#define REPO            "zerdarker/STAR-WARS-TRILOGY-VECTOR-RECOMP"
+#define REPO            "zerdarker/ATARI-STAR-WARS-Arcade-RECOMP-edition"
 #endif
 static char status_msg[96];
 
