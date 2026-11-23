@@ -380,6 +380,7 @@ static double gamma_gain = 1.0;         /* [vector] brightness: multiplies every
 static int  menu_active;
 static void menu_emit(void);
 static void menu_update(void);
+static int  menu_esc;                        /* Esc closed the menu: it must be let go before it quits */
 static void menu_save(void);
 
 static void ph_replay(void)
@@ -512,7 +513,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
 
     case WM_KEYDOWN:
         if (lParam & (1 << 30)) return 0;                     /* auto-repeat */
-        if (wParam == VK_ESCAPE) { g_quit = 1; return 0; }
+        if (wParam == VK_ESCAPE) { if (!menu_active) g_quit = 1; return 0; }   /* with the menu open, Esc only closes it */
         if (wParam == VK_F2) {
             test_latch = !test_latch;
             LOG_INFO("self-test switch %s (F2)", test_latch ? "CLOSED" : "open");
@@ -949,7 +950,8 @@ void plat_input_poll(plat_inputs *in)
     if (y > 255.0) y = 255.0;
     in->yaw = (uint8_t)x;
     in->pitch = (uint8_t)y;
-    if (key[KEY_ESC] && !menu_active) g_quit = 1;
+    if (!key[KEY_ESC]) menu_esc = 0;
+    if (key[KEY_ESC] && !menu_active && !menu_esc) g_quit = 1;
     in->quit = (uint8_t)g_quit;
 }
 
@@ -1168,7 +1170,7 @@ static void menu_update(void)
         if (f1) { menu_active = 1; menu_sel = MI_PRESET; }
         return;
     }
-    if (f1 || es) { menu_active = 0; menu_save(); return; }
+    if (f1 || es) { menu_active = 0; menu_esc = es; menu_save(); return; }
 
     if (up) menu_sel = (menu_sel + MI_COUNT - 1) % MI_COUNT;
     if (dn) menu_sel = (menu_sel + 1) % MI_COUNT;

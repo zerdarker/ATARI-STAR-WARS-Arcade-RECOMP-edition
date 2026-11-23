@@ -119,6 +119,16 @@ static void widescreen_patch(void)
     put16(rom_main, 0x349E, (uint16_t)( SPACE & 0x1fff));     /* space, right       */
     put16(rom_main, 0x3498, (uint16_t)(-SPACE & 0x1fff));     /* space, left        */
 
+    /* the HUD's left block (scores, their box): its centre-relative X moves
+       out by 170, as Star Wars' VGHUDL (-480 -> -650); the right block already
+       reaches the 16:9 edge.  Found from the vector RAM: CNTR then LDD #dx. */
+    for (unsigned at : { 0xAA4Au, 0xAA4Fu, 0xAAC4u, 0xAACEu, 0xAAF7u,     /* LDD #dx operands */
+                         0xAB18u, 0xAB1Cu, 0xAB20u, 0xAB24u }) {           /* score lines {dy, dx} table */
+        int v = (rom_main[at] << 8 | rom_main[at + 1]) & 0x1fff;
+        if (v & 0x1000) v -= 0x2000;
+        put16(rom_main, at, (uint16_t)((v - 170) & 0x1fff));
+    }
+
     /* where the lasers start: slapstic page 3, table at $96B5, 8 bytes an
        entry {dy, dy2, dx left, dx right}; entries 0, 1, 4 fire from the
        snowspeeder's guns, 2 and 5 from the space guns */
