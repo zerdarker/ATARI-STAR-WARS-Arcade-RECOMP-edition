@@ -1178,8 +1178,8 @@ static void menu_emit(void)
     const rgb_t C_VALUE = MAKE_RGB(60, 220, 255);
     const rgb_t C_SEL   = MAKE_RGB(255, 230, 50);
     const rgb_t C_DIM   = MAKE_RGB(170, 40, 40);
-    const float sc = 4.2f, step = 36.0f;
-    const float lx = -330.0f, vx = 80.0f;
+    const float sc = 3.4f, step = 30.0f;
+    const float lx = -290.0f, vx = 60.0f;
     float y;
     char val[48];
     int i;
@@ -1187,13 +1187,13 @@ static void menu_emit(void)
     /* title, centred */
     {
         const char *t1 = "OPTIONS";
-        float s1 = 7.0f;
-        vfont_text(-vfont_width(s1, t1) * 0.5f, 218.0f, s1, C_TITLE, t1);
+        float s1 = 6.0f;
+        vfont_text(-vfont_width(s1, t1) * 0.5f, 225.0f, s1, C_TITLE, t1);
         const char *t2 = game_esb ? "THE EMPIRE STRIKES BACK 16:9" : "STAR WARS 16:9";
-        vfont_text(-vfont_width(3.2f, t2) * 0.5f, 188.0f, 3.2f, C_LABEL, t2);
+        vfont_text(-vfont_width(2.8f, t2) * 0.5f, 200.0f, 2.8f, C_LABEL, t2);
     }
 
-    y = 140.0f;
+    y = 160.0f;
     for (i = 0; i < MI_COUNT; i++, y -= step) {
         rgb_t lc = i == menu_sel ? C_SEL : C_LABEL;
         if (i == MI_PLAY) {
@@ -1233,8 +1233,8 @@ static void menu_emit(void)
         }
     }
 
-    vfont_text(-vfont_width(2.6f, "ARROWS: ADJUST   ENTER: SELECT   F1/ESC: CLOSE") * 0.5f,
-               -288.0f, 2.6f, C_DIM,
+    vfont_text(-vfont_width(2.2f, "ARROWS: ADJUST   ENTER: SELECT   F1/ESC: CLOSE") * 0.5f,
+               -285.0f, 2.2f, C_DIM,
                "ARROWS: ADJUST   ENTER: SELECT   F1/ESC: CLOSE");
 }
 
