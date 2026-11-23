@@ -314,7 +314,7 @@ static void load_games(void)
 }
 
 /* ---- GitHub page and update ---- */
-#define TRILOGY_VERSION "1.0"
+#define TRILOGY_VERSION "1.1"
 #ifndef REPO
 #define REPO            "zerdarker/ATARI-STAR-WARS-Arcade-RECOMP-edition"
 #endif
@@ -603,7 +603,7 @@ int selector_main(HINSTANCE hInstance)
     DWORD style = WS_OVERLAPPEDWINDOW;
     RECT wr = { 0, 0, 1280, 720 };
     char path[MAX_PATH], *slash;
-    int sel, prev = -1, start_full;
+    int sel, prev = -1, start_full, away = 0;
     LARGE_INTEGER freq, t0, now;
     double last = 0.0;
 
@@ -677,7 +677,20 @@ int selector_main(HINSTANCE hInstance)
         if (edge & IN_RIGHT) sel = sel < 2 ? 1 : 3;
         if (edge & IN_DOWN) sel |= 2;
         if (edge & IN_UP) sel &= 1;
-        if ((edge & IN_PLAY) && sel == 2) { open_github(); continue; }
+        if ((edge & IN_PLAY) && sel == 2) {        /* step out of fullscreen so the browser shows */
+            music(0);
+            if (IsFullscreen()) ToggleFullscreen();
+            ShowWindow(hWnd, SW_MINIMIZE);
+            open_github();
+            away = 1;
+            continue;
+        }
+        if (away && !IsIconic(hWnd) && GetForegroundWindow() == hWnd) {   /* back from the browser */
+            away = 0;
+            if (start_full && !IsFullscreen()) ToggleFullscreen();
+            music(1);
+            prev = -1;
+        }
         if ((edge & IN_PLAY) && sel == 3) {
             snprintf(status_msg, sizeof status_msg, "CHECKING FOR UPDATES...");
             draw(sel, t, 0.0f);
@@ -709,6 +722,7 @@ int selector_main(HINSTANCE hInstance)
             last = (double)(now.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
             continue;
         }
+        if (IsIconic(hWnd)) { Sleep(50); continue; }      /* minimised: nothing to draw */
         draw(sel, t, (float)(t - last));
         last = t;
         glSwap();

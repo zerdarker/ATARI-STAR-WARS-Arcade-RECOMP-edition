@@ -369,6 +369,7 @@ static double gamma_gain = 1.0;         /* [vector] brightness: multiplies every
 static int  menu_active;
 static void menu_emit(void);
 static void menu_update(void);
+static void menu_save(void);
 
 static void ph_replay(void)
 {
@@ -911,10 +912,11 @@ void plat_input_poll(plat_inputs *in)
             }
         }
     }
-    /* the options menu swallows every game button while it is open */
+    /* the options menu swallows the triggers while it is open; a coin closes it
+       and goes in, so "insert coin" works straight away */
     if (menu_active) {
         in->fire_r = in->fire_l = in->thumb_r = in->thumb_l = 0;
-        in->coin_l = in->coin_r = in->coin_aux = 0;
+        if (in->coin_l || in->coin_r || in->coin_aux) { menu_active = 0; menu_save(); }
     }
     /* autofire: chop a held trigger into pulses so the game sees repeated presses */
     if (autofire_enabled) {
