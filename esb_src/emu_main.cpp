@@ -32,10 +32,10 @@ extern "C" {
 }
 #include "platform/windows/miniz.h"
 
+namespace esb {
+
 #define CPU_HZ      1512000.0
 #define PHASE       0x4841u
-#define PASS_PC     0x602Fu             /* the start of a game frame in the mainline */
-#define STACK_TOP   0x4FFFu
 
 static sw_app_opts opt;
 static char err[300];
@@ -432,3 +432,15 @@ void sw_app_exit(void)
 }
 
 const char *sw_app_name(void) { return "ESB ROMs on 6809 cores"; }
+
+}   /* namespace esb */
+
+/* The machine as the Trilogy platform layer calls it (plat_win.c, --game esb). */
+extern "C" {
+int  esb_app_init(const sw_app_opts *o) { return esb::sw_app_init(o); }
+void esb_app_run(double now_ms) { esb::sw_app_run(now_ms); }
+void esb_app_exit(void) { esb::sw_app_exit(); }
+void esb_app_get_stats(sw_app_stats *s) { esb::sw_app_get_stats(s); }
+const char *esb_app_error(void) { return esb::sw_app_error(); }
+const char *esb_app_name(void) { return esb::sw_app_name(); }
+}

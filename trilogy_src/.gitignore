@@ -1,0 +1,7 @@
+obj/
+*.exe
+*.ini
+*.log
+*.nv
+logos/
+roms/

@@ -17,6 +17,10 @@
 #include "x2212.h"
 #include "riot6532.h"
 
+/* ESB's board lives in its own namespace: the Trilogy exe links it beside
+ * the Star Wars C port, whose hardware functions have the same names. */
+namespace esb {
+
 #define SW_IRQ_CYCLES   6144u            /* 3 kHz / 12 at 1.512 MHz */
 #define SW_WD_CYCLES    (32u * 6144u)    /* WTCHDG: "EVERY 8*4 IRQS" */
 #define SW_TMS_CYCLES   189u             /* one 8 kHz speech sample */
@@ -139,4 +143,5 @@ void     sw_bind_memory(uint8_t *main_mem);
 void     sw_snd_chips_advance(void);         /* the speech chip's samples and the 6532's timer, up to SW.snd_cyc */
 int      sw_snd_irq(void);                   /* the 6532's /IRQ */
 
+}   /* namespace esb */
 #endif

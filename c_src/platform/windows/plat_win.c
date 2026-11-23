@@ -42,7 +42,35 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 
-#define APP_NAME "Star Wars"
+/* The Trilogy build (one exe for Star Wars, ESB and the selection page)
+ * picks the machine at launch with --game; the C port alone is Star Wars. */
+static int game_esb;
+static const char *app_name = "Star Wars";
+#define APP_NAME app_name
+
+#ifdef TRILOGY
+int  esb_app_init(const sw_app_opts *o);
+void esb_app_run(double now_ms);
+void esb_app_exit(void);
+void esb_app_get_stats(sw_app_stats *s);
+const char *esb_app_error(void);
+const char *esb_app_name(void);
+int  selector_main(HINSTANCE hInstance);
+
+static int  app_init(const sw_app_opts *o) { return game_esb ? esb_app_init(o) : sw_app_init(o); }
+static void app_run(double now_ms) { if (game_esb) esb_app_run(now_ms); else sw_app_run(now_ms); }
+static void app_exit(void) { if (game_esb) esb_app_exit(); else sw_app_exit(); }
+static void app_get_stats(sw_app_stats *s) { if (game_esb) esb_app_get_stats(s); else sw_app_get_stats(s); }
+static const char *app_error(void) { return game_esb ? esb_app_error() : sw_app_error(); }
+static const char *app_name_of(void) { return game_esb ? esb_app_name() : sw_app_name(); }
+#define sw_app_init      app_init
+#define sw_app_run       app_run
+#define sw_app_exit      app_exit
+#define sw_app_get_stats app_get_stats
+#define sw_app_error     app_error
+#define sw_app_name      app_name_of
+#endif
+
 #define KEY_HELP "mouse/arrows/stick = yoke, LMB/Ctrl + RMB/Alt = triggers, Space/Shift = thumbs (any fires, " \
                  "and starts), 5/6 coin, 7 aux coin, F2 self test, F1 diag, F4 sound test, F8 mouse capture, Esc quit"
 
@@ -67,9 +95,12 @@ static void resolve_paths(void)
         if (dot) *dot = '\0';
         slash[1] = '\0';
     } else exe_dir[0] = '\0';
+#ifdef TRILOGY
+    snprintf(stem, sizeof stem, "%s", game_esb ? "esb" : "starwars");   /* one exe, a file set per game */
+#endif
     snprintf(path_ini, sizeof path_ini, "%s%s.ini", exe_dir, stem);
     snprintf(path_log, sizeof path_log, "%s%s.log", exe_dir, stem);
-    snprintf(path_nv,  sizeof path_nv,  "%sstarwars.nv", exe_dir);
+    snprintf(path_nv,  sizeof path_nv,  "%s%s.nv", exe_dir, game_esb ? "esb" : "starwars");
 }
 
 /* ------------------------------------------------------------------ */
@@ -176,6 +207,7 @@ int DESIGN_W = 1280;                           /* 16:9 widescreen (original: 960
 int DESIGN_H = 720;
 
 HWND win_get_window(void) { return hWnd; }
+void plat_set_window(HWND h) { hWnd = h; }           /* the selection page's own window */
 
 static void msg_box(const char *title, const char *message)
 {
@@ -472,9 +504,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
         if (wParam == VK_F2) {
             test_latch = !test_latch;
             LOG_INFO("self-test switch %s (F2)", test_latch ? "CLOSED" : "open");
-            set_window_title(test_latch ? APP_NAME "  self-test switch ON: statistics (7 = options) in the attract mode; "
+            set_window_title(test_latch ? "self-test switch ON: statistics (7 = options) in the attract mode; "
                                                    "the self test after a reset"
-                                        : APP_NAME "  self-test switch off");
+                                        : "self-test switch off");
         }
         if (wParam == VK_F1) {
             diag_latch = !diag_latch;
@@ -483,8 +515,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
         if (wParam == VK_F4) {
             sndtest_latch = !sndtest_latch;
             LOG_INFO("sound board test switch %s (F4)", sndtest_latch ? "CLOSED" : "open");
-            set_window_title(sndtest_latch ? APP_NAME "  sound board test switch ON: it plays every sound in turn"
-                                           : APP_NAME "  sound board test switch off");
+            set_window_title(sndtest_latch ? "sound board test switch ON: it plays every sound in turn"
+                                           : "sound board test switch off");
         }
         if (wParam == VK_F8) {
             capture_enabled = !capture_enabled;
@@ -583,10 +615,10 @@ static int plat_init(void)
     set_config_file(path_ini);
 
     {
-        char *s = get_config_string("main", "rom_dir", "..\\disasm\\build");
+        char *s = get_config_string("main", "rom_dir", "roms");
         if (s && s[0] && (s[1] == ':' || s[0] == '\\')) snprintf(path_roms, sizeof path_roms, "%s", s);
-        else snprintf(path_roms, sizeof path_roms, "%s%s", exe_dir, s ? s : "..\\disasm\\build");
-        set_config_string("main", "rom_dir", s ? s : "..\\disasm\\build");
+        else snprintf(path_roms, sizeof path_roms, "%s%s", exe_dir, s ? s : "roms");
+        set_config_string("main", "rom_dir", s ? s : "roms");
         if (s) free(s);
         if (romdir_cli[0]) snprintf(path_roms, sizeof path_roms, "%s", romdir_cli);
     }
@@ -597,7 +629,7 @@ static int plat_init(void)
     start_fullscreen = get_config_int("main", "fullscreen", 0) != 0;
     set_config_int("main", "fullscreen", start_fullscreen);
 
-    dsw0 = (uint8_t)get_config_int("dips", "dsw0", 0x84);
+    dsw0 = (uint8_t)get_config_int("dips", "dsw0", game_esb ? 0xF3 : 0x84);   /* factory settings */
     dsw1 = (uint8_t)get_config_int("dips", "dsw1", 0x02);
     set_config_int("dips", "dsw0", dsw0);
     set_config_int("dips", "dsw1", dsw1);
@@ -673,7 +705,7 @@ static int plat_init(void)
     timeBeginPeriod(1);
 
     if (!turbo && !hidden_mode) {
-        set_window_title(APP_NAME " - " KEY_HELP);
+        { char t[400]; snprintf(t, sizeof t, "%s - %s", APP_NAME, KEY_HELP); set_window_title(t); }
         ShowWindow(hWnd, SW_SHOW);
         SetForegroundWindow(hWnd);
         window_active = GetForegroundWindow() == hWnd;
@@ -832,9 +864,10 @@ void plat_input_poll(plat_inputs *in)
         if (yoke_y > 255.0) yoke_y = 255.0;
 
         in->fire_r  = (key[KEY_LCONTROL] || (mouse_b & 1)) ? 1 : 0;
-        in->fire_l  = (key[KEY_ALT] || (mouse_b & 2)) ? 1 : 0;
-        in->thumb_r = key[KEY_SPACE] ? 1 : 0;
-        in->thumb_l = (key[KEY_LSHIFT] || key[KEY_RSHIFT]) ? 1 : 0;
+        /* ESB fires the tow cable from the thumb buttons, so there the second mouse button is one */
+        in->fire_l  = (key[KEY_ALT] || (!game_esb && (mouse_b & 2))) ? 1 : 0;
+        in->thumb_r = (key[KEY_SPACE] || (game_esb && (mouse_b & 2))) ? 1 : 0;
+        in->thumb_l = (key[KEY_LSHIFT] || key[KEY_RSHIFT] || (game_esb && (mouse_b & 4))) ? 1 : 0;
         in->coin_l  = key[KEY_5] ? 1 : 0;
         in->coin_r  = key[KEY_6] ? 1 : 0;
         in->coin_aux = key[KEY_7] ? 1 : 0;
@@ -889,8 +922,10 @@ void plat_input_poll(plat_inputs *in)
         int on = fmod(now, period) < period * 0.5;
         if (in->fire_r)  in->fire_r  = (uint8_t)on;
         if (in->fire_l)  in->fire_l  = (uint8_t)on;
-        if (in->thumb_r) in->thumb_r = (uint8_t)on;
-        if (in->thumb_l) in->thumb_l = (uint8_t)on;
+        if (!game_esb) {                  /* ESB: a held cable button would spend every tow cable */
+            if (in->thumb_r) in->thumb_r = (uint8_t)on;
+            if (in->thumb_l) in->thumb_l = (uint8_t)on;
+        }
     }
     if (x < 0.0) x = 0.0;
     if (x > 255.0) x = 255.0;
@@ -1152,8 +1187,8 @@ static void menu_emit(void)
         const char *t1 = "OPTIONS";
         float s1 = 7.0f;
         vfont_text(-vfont_width(s1, t1) * 0.5f, 218.0f, s1, C_TITLE, t1);
-        vfont_text(-vfont_width(3.2f, "STAR WARS 16:9") * 0.5f, 188.0f, 3.2f,
-                   C_LABEL, "STAR WARS 16:9");
+        const char *t2 = game_esb ? "THE EMPIRE STRIKES BACK 16:9" : "STAR WARS 16:9";
+        vfont_text(-vfont_width(3.2f, t2) * 0.5f, 188.0f, 3.2f, C_LABEL, t2);
     }
 
     y = 140.0f;
@@ -1318,6 +1353,9 @@ static int parse_args(void)
             i += 2;
         } else if (!strcmp(a, "--shot-size") && i + 1 < __argc) {
             if (sscanf(__argv[++i], "%dx%d", &shot_w, &shot_h) != 2 || shot_w < 16 || shot_h < 16) { shot_w = 960; shot_h = 720; }
+        } else if (!strcmp(a, "--game") && i + 1 < __argc) {
+            game_esb = !strcmp(__argv[++i], "esb");
+            app_name = game_esb ? "The Empire Strikes Back" : "Star Wars";
         } else if (!strcmp(a, "--rev") && i + 1 < __argc) rev_cli = atoi(__argv[++i]);
         else if (!strcmp(a, "--romdir") && i + 1 < __argc) snprintf(romdir_cli, sizeof romdir_cli, "%s", __argv[++i]);
         else if (!strcmp(a, "--script") && i + 1 < __argc) snprintf(script_path, sizeof script_path, "%s", __argv[++i]);
@@ -1364,6 +1402,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             APP_NAME, MB_OK);
         return 2;
     }
+#ifdef TRILOGY
+    if (__argc == 1) return selector_main(hInstance);      /* no game named: the selection page */
+#endif
     if (plat_init()) { log_close(); return 1; }
 
     memset(&o, 0, sizeof o);
@@ -1408,9 +1449,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             if (now - stat_t >= 1000.0) {
                 char s[400];
                 double dt = (now - stat_t) / 1000.0;
-                snprintf(s, sizeof s, APP_NAME " (%s)  %.1f pictures/s  machine/wall %.3f  %.1f passes/s  %.1f IRQ/s  "
+                snprintf(s, sizeof s, "%s (%s)  %.1f pictures/s  machine/wall %.3f  %.1f passes/s  %.1f IRQ/s  "
                          "%d vectors  PHASE $%02X%s%s",
-                         sw_app_name(),
+                         APP_NAME, sw_app_name(),
                          (double)(n_frames_in - frames0) / dt, (double)(st.cycles - st0.cycles) / 1512000.0 / dt,
                          (double)(st.passes - st0.passes) / dt, (double)(st.irqs - st0.irqs) / dt, st.points, st.phase,
                          test_latch ? "  SELF TEST SWITCH ON" : "", sndtest_latch ? "  SOUND TEST ON" : "");

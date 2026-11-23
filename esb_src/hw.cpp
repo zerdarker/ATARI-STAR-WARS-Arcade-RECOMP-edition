@@ -75,6 +75,8 @@
 #include "board.h"
 #include "tms5220.h"
 
+namespace esb {
+
 sw_board SW;
 
 static sw_roms roms;
@@ -370,3 +372,5 @@ void sw_snd_chips_advance(void)
 int sw_snd_irq(void) { return riot_irq(&SW.riot) != 0; }
 
 uint64_t sw_ticks(void) { return ticks_now(); }
+
+}   /* namespace esb */

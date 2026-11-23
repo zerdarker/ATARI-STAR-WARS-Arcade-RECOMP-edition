@@ -16,6 +16,8 @@
 #include "cpu/cpu_m6809.h"
 #include "board.h"
 
+namespace esb {
+
 static cpu_m6809 *cpu0, *cpu1;
 
 extern "C" void sw_cpu_log(const char *fmt, ...)
@@ -260,3 +262,4 @@ void sw_regs(int cpu, uint16_t out[8])
     out[4] = c->GetY();  out[5] = c->GetD(); out[6] = c->GetDP(); out[7] = c->GetCC();
 }
 
+}   /* namespace esb */

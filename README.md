@@ -17,14 +17,17 @@ vector game-selection page.
 
 ## Download
 
-A ready-to-play package (the three programs, documentation and empty `roms`
-folders — **no ROMs**) is on the [Releases](../../releases) page. Unzip it
-anywhere, add your ROM sets, run `Star Wars Arcade - Selection.bat`.
+A ready-to-play package — **one program, `StarWarsTrilogy.exe`**, with an empty
+`roms` folder and **no ROMs** — is on the [Releases](../../releases) page. Unzip
+it anywhere, put your ROM sets in `roms`, run `StarWarsTrilogy.exe`.
+
+The selection page has a **GITHUB PAGE** button and an **UPDATE** button: it
+checks the latest release here and, when there is a newer one, replaces the exe
+and restarts (your ROMs, settings and high scores are kept).
 
 **Requirements:** Windows 10 or 11 (64-bit), a graphics card with OpenGL 3.3.
-The Visual C++ runtime DLLs are included next to each program. The programs
-are not code-signed: Windows SmartScreen or an antivirus may ask you to
-confirm the first launch.
+Nothing to install: the C runtime is built into the exe. It is not code-signed:
+Windows SmartScreen or an antivirus may ask you to confirm the first launch.
 
 ![Game selection page](docs/widescreen/selection.png)
 
@@ -58,8 +61,8 @@ memory when the game loads.
 
 | Game | MAME set | Put it here |
 |---|---|---|
-| Star Wars | `starwars` (revision 2, or revision 1 `starwars1`) | `StarWars-Arcade/StarWars-16-9/roms/starwars.zip` |
-| The Empire Strikes Back | `esb` | `empire strikes back - Arcade/ESB-16-9/roms/esb.zip` |
+| Star Wars | `starwars` (revision 2, or revision 1 `starwars1`) | `roms/starwars.zip` |
+| The Empire Strikes Back | `esb` | `roms/esb.zip` |
 
 If a ROM set is missing or incomplete, the game says which file it expected and
 where.
@@ -67,20 +70,16 @@ where.
 ## Folder layout (ready to play)
 
 ```
-Star Wars Arcade - Selection.bat         <- start here
-Selection/
-    selection.exe   selection.ini
-StarWars-Arcade/
-    Star Wars (16-9 natif, port C).bat
-    StarWars-16-9/
-        sw_win.exe  sw_win.ini
-        roms/starwars.zip                <- your ROM set
-empire strikes back - Arcade/
-    Empire Strikes Back (16-9 natif).bat
-    ESB-16-9/
-        esb.exe     esb.ini
-        roms/esb.zip                     <- your ROM set
+StarWarsTrilogy.exe              <- run it: the selection page
+roms/
+    starwars.zip                 <- your ROM set
+    esb.zip                      <- your ROM set
 ```
+
+Created next to the exe as you play: `starwars.ini` / `esb.ini` /
+`selection.ini` (settings), `starwars.nv` / `esb.nv` (high scores), `logos/`
+(the title logos and the theme, drawn by the games on first run).
+`StarWarsTrilogy.exe --game starwars` or `--game esb` starts a game directly.
 
 ## Controls
 
@@ -99,7 +98,7 @@ all four cables.
 
 ### Remapping a controller
 
-In `sw_win.ini` / `esb.ini`, section `[joystick]`:
+In `starwars.ini` / `esb.ini`, section `[joystick]`:
 
 ```ini
 ignore=ROCCAT            ; device names to skip, ';'-separated (e.g. a mouse dock that poses as a joystick)
@@ -116,13 +115,16 @@ deadzone=19
 Visual Studio 2022 (Build Tools are enough), x64:
 
 ```
-cmd /c c_src\build_win_bt.bat           -> c_src\sw_win.exe     (Star Wars)
-cmd /c esb_src\build_esb.bat            -> esb_src\esb.exe      (The Empire Strikes Back)
-cmd /c selector_src\build_selector.bat  -> selector_src\selection.exe
+cmd /c trilogy_src\build_trilogy.bat    -> trilogy_src\StarWarsTrilogy.exe
 ```
 
-`build_win_bt.bat` is `build_win.bat` pointed at the VS 2022 *Build Tools*
-install; use `build_win.bat` with the Community edition.
+One exe from three parts on one platform layer (`c_src/platform/windows`):
+Star Wars ([`c_src/`](c_src/README.md), the C port), The Empire Strikes Back
+([`esb_src/`](esb_src/README.md), its board in C++ namespace `esb`), and the
+selection page ([`selector_src/`](selector_src/README.md)). The scripts use the
+VS 2022 *Build Tools* path; edit the `VsDevCmd.bat` line for another edition.
+The C port alone still builds as upstream: `c_src\build_win_bt.bat` ->
+`sw_win.exe` (Star Wars only).
 
 ## How the 16:9 widening works
 

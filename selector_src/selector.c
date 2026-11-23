@@ -23,46 +23,19 @@
 #include "ini.h"
 #include "colordefs.h"
 #include <mmsystem.h>
+#include <winhttp.h>
+#include "miniz.h"
 #pragma comment(lib, "winmm.lib")
 
 #define PIC_HH 300.0f
 #define PIC_HW (PIC_HH * 16.0f / 9.0f)
 
-/* ---- window: what the framework files expect from their host ---- */
+/* ---- window: the platform layer (plat_win.c) owns the framework globals,
+ * fullscreen and win_get_window(); this page lends it its own window ---- */
 static HWND hWnd;
 static int  g_quit;
-int SCREEN_W = 1280, SCREEN_H = 720, DESIGN_W = 1280, DESIGN_H = 720;
-HWND win_get_window(void) { return hWnd; }
+void plat_set_window(HWND h);
 int KeyCheck(int k) { return key[k]; }
-
-static int is_fullscreen;
-static RECT windowed_rect;
-static LONG_PTR windowed_style, windowed_exstyle;
-int IsFullscreen(void) { return is_fullscreen; }
-
-void ToggleFullscreen(void)
-{
-    if (is_fullscreen) {
-        SetWindowLongPtr(hWnd, GWL_STYLE, windowed_style);
-        SetWindowLongPtr(hWnd, GWL_EXSTYLE, windowed_exstyle);
-        SetWindowPos(hWnd, HWND_NOTOPMOST, windowed_rect.left, windowed_rect.top,
-                     windowed_rect.right - windowed_rect.left, windowed_rect.bottom - windowed_rect.top,
-                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-        is_fullscreen = 0;
-    } else {
-        MONITORINFO mi = { sizeof(mi) };
-        GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST), &mi);
-        GetWindowRect(hWnd, &windowed_rect);
-        windowed_style = GetWindowLongPtr(hWnd, GWL_STYLE);
-        windowed_exstyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
-        SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_TOPMOST);
-        SetWindowPos(hWnd, HWND_TOPMOST, mi.rcMonitor.left, mi.rcMonitor.top,
-                     mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
-                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-        is_fullscreen = 1;
-    }
-}
 
 static float beam_proj[16];
 static float beam_px = 2.0f;
@@ -171,7 +144,8 @@ static void vfont_center(float cx, float y, float sc, rgb_t col, const char *s)
 typedef struct { float x0, y0, x1, y1; rgb_t rgb; int z; } lseg;
 typedef struct {
     char title[64], exe[MAX_PATH], logo[MAX_PATH];
-    int  picture;                           /* the attract picture that shows the title */
+    const char *id;                         /* --game starwars / esb: this same exe runs it */
+    int  picture;                          /* the attract picture that shows the title */
     lseg *seg; int n;
     float cx, cy, half_w, half_h;           /* the logo's bounding box */
 } game;
@@ -213,7 +187,7 @@ static void load_logo(game *g)
 
     if (GetFileAttributesA(g->logo) == INVALID_FILE_ATTRIBUTES) {
         char args[MAX_PATH + 64];
-        snprintf(args, sizeof args, "--turbo --hidden --no-nvram --shot p%d \"%s\"", g->picture, g->logo);
+        snprintf(args, sizeof args, "--game %s --turbo --hidden --no-nvram --shot p%d \"%s\"", g->id, g->picture, g->logo);
         LOG_INFO("drawing the logo of %s: %s %s", g->title, g->exe, args);
         run_game(g->exe, args, 60000);
     }
@@ -277,7 +251,7 @@ static void prepare_music(const char *starwars_exe)
     if (!f) return;
     fputs("20 poke 0x4B34 0x55\n", f);
     fclose(f);
-    snprintf(args, sizeof args, "--turbo --hidden --no-nvram --script \"%s\" --wav \"%s\" --passes 700", script, raw);
+    snprintf(args, sizeof args, "--game starwars --turbo --hidden --no-nvram --script \"%s\" --wav \"%s\" --passes 700", script, raw);
     LOG_INFO("recording the Star Wars theme: %s %s", starwars_exe, args);
     run_game(starwars_exe, args, 120000);
     DeleteFileA(script);
@@ -317,8 +291,7 @@ static void load_games(void)
 {
     static const char *const sec[2] = { "game1", "game2" };
     static const char *const def_title[2] = { "STAR WARS - 1983", "THE EMPIRE STRIKES BACK - 1985" };
-    static const char *const def_exe[2] = { "..\\StarWars-Arcade\\StarWars-16-9\\sw_win.exe",
-                                            "..\\empire strikes back - Arcade\\ESB-16-9\\esb.exe" };
+    static const char *const id[2] = { "starwars", "esb" };
     static const int def_picture[2] = { 580, 590 };
     char dir[MAX_PATH];
     int i;
@@ -331,17 +304,153 @@ static void load_games(void)
         snprintf(g->title, sizeof g->title, "%s", s ? s : def_title[i]);
         set_config_string(sec[i], "title", g->title);
         if (s) free(s);
-        s = get_config_string(sec[i], "exe", def_exe[i]);
-        if (!s) s = _strdup(def_exe[i]);
-        set_config_string(sec[i], "exe", s);
-        if (s[0] && (s[1] == ':' || s[0] == '\\')) snprintf(g->exe, sizeof g->exe, "%s", s);
-        else snprintf(g->exe, sizeof g->exe, "%s%s", exe_dir, s);
-        free(s);
+        GetModuleFileNameA(NULL, g->exe, sizeof g->exe);
+        g->id = id[i];
         g->picture = get_config_int(sec[i], "logo_picture", def_picture[i]);
         set_config_int(sec[i], "logo_picture", g->picture);
         snprintf(g->logo, sizeof g->logo, "%s\\game%d.vec", dir, i + 1);
         load_logo(g);
     }
+}
+
+/* ---- GitHub page and update ---- */
+#define TRILOGY_VERSION "1.0"
+#ifndef REPO
+#define REPO            "zerdarker/STAR-WARS-TRILOGY-VECTOR-RECOMP"
+#endif
+static char status_msg[96];
+
+static void open_github(void)
+{
+    ShellExecuteA(NULL, "open", "https://github.com/" REPO, NULL, NULL, SW_SHOWNORMAL);
+}
+
+/* HTTPS GET; *out is malloc'd and 0-terminated.  0 = ok. */
+static int https_get(const char *url, char **out, size_t *len)
+{
+    wchar_t host[256], path[2048];
+    const char *h = strstr(url, "://"), *slash;
+    HINTERNET s = NULL, c = NULL, r = NULL;
+    DWORD code = 0, sz = sizeof code, n;
+    size_t cap = 1 << 16;
+    int rc = 1;
+    if (!h) return 1;
+    h += 3;
+    slash = strchr(h, '/');
+    if (!slash || slash - h > 255) return 1;
+    MultiByteToWideChar(CP_UTF8, 0, h, (int)(slash - h), host, 255);
+    host[slash - h] = 0;
+    MultiByteToWideChar(CP_UTF8, 0, slash, -1, path, 2048);
+    *out = (char *)malloc(cap);
+    *len = 0;
+    if (!*out) return 1;
+    s = WinHttpOpen(L"StarWarsTrilogy/" TRILOGY_VERSION, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
+    if (s) c = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (c) r = WinHttpOpenRequest(c, L"GET", path, NULL, NULL, NULL, WINHTTP_FLAG_SECURE);
+    if (r && WinHttpSendRequest(r, L"Accept: application/vnd.github+json\r\n", (DWORD)-1, NULL, 0, 0, 0) &&
+        WinHttpReceiveResponse(r, NULL) &&
+        WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL, &code, &sz, NULL) &&
+        code == 200) {
+        rc = 0;
+        while (WinHttpQueryDataAvailable(r, &n) && n) {
+            if (*len + n + 1 > cap) {
+                char *m = (char *)realloc(*out, cap = (*len + n + 1) * 2);
+                if (!m) { rc = 1; break; }
+                *out = m;
+            }
+            if (!WinHttpReadData(r, *out + *len, n, &n)) { rc = 1; break; }
+            *len += n;
+        }
+        (*out)[*len] = 0;
+    }
+    if (r) WinHttpCloseHandle(r);
+    if (c) WinHttpCloseHandle(c);
+    if (s) WinHttpCloseHandle(s);
+    if (rc) { free(*out); *out = NULL; }
+    return rc;
+}
+
+/* 1 = version a is newer than b ("1.10" > "1.2": compared as numbers) */
+static int newer(const char *a, const char *b)
+{
+    int a1 = 0, a2 = 0, a3 = 0, b1 = 0, b2 = 0, b3 = 0;
+    sscanf(a, "%d.%d.%d", &a1, &a2, &a3);
+    sscanf(b, "%d.%d.%d", &b1, &b2, &b3);
+    return a1 != b1 ? a1 > b1 : a2 != b2 ? a2 > b2 : a3 > b3;
+}
+
+/* Checks the latest GitHub release; if newer, puts its StarWarsTrilogy.exe in
+ * place of this one (the caller restarts).  ROMs, settings and scores are
+ * untouched.  shortcut: trusts GitHub over HTTPS, no signature check; sign the
+ * exe to do better. */
+static int update(void)
+{
+    char *json = NULL, *zipdata = NULL, tag[32] = "", url[1024] = "", self[MAX_PATH], old[MAX_PATH + 8], newp[MAX_PATH + 8];
+    size_t len, zlen, n = 0;
+    const char *p, *q;
+    mz_zip_archive z;
+    void *exe = NULL;
+    mz_uint i;
+    int ok = 0;
+
+    if (https_get("https://api.github.com/repos/" REPO "/releases/latest", &json, &len)) {
+        snprintf(status_msg, sizeof status_msg, "UPDATE CHECK FAILED");
+        return 0;
+    }
+    p = strstr(json, "\"tag_name\"");
+    if (p && (p = strchr(p + 10, '"')) != NULL) {
+        q = strchr(++p, '"');
+        if (q && q - p < 31) { memcpy(tag, p, (size_t)(q - p)); tag[q - p] = 0; }
+    }
+    for (p = json; (p = strstr(p, "\"browser_download_url\"")) != NULL; p = q) {
+        p = strchr(p + 22, '"');
+        if (!p || !(q = strchr(++p, '"'))) break;
+        if (q - p > 4 && q - p < (int)sizeof url && !_strnicmp(q - 4, ".zip", 4)) {
+            memcpy(url, p, (size_t)(q - p));
+            url[q - p] = 0;
+            break;
+        }
+    }
+    free(json);
+    if (!tag[0] || !newer(tag + (tag[0] == 'v' || tag[0] == 'V'), TRILOGY_VERSION)) {
+        snprintf(status_msg, sizeof status_msg, tag[0] ? "UP TO DATE - V" TRILOGY_VERSION : "UPDATE CHECK FAILED");
+        return 0;
+    }
+    LOG_INFO("update: %s from %s", tag, url);
+    if (!url[0] || https_get(url, &zipdata, &zlen)) { snprintf(status_msg, sizeof status_msg, "DOWNLOAD FAILED"); return 0; }
+    memset(&z, 0, sizeof z);
+    if (mz_zip_reader_init_mem(&z, zipdata, zlen, 0)) {
+        for (i = 0; i < mz_zip_reader_get_num_files(&z) && !exe; i++) {
+            char name[512];
+            size_t k;
+            mz_zip_reader_get_filename(&z, i, name, sizeof name);
+            k = strlen(name);
+            if (k >= 19 && !_stricmp(name + k - 19, "StarWarsTrilogy.exe"))
+                exe = mz_zip_reader_extract_to_heap(&z, i, &n, 0);
+        }
+        mz_zip_reader_end(&z);
+    }
+    free(zipdata);
+    GetModuleFileNameA(NULL, self, sizeof self);
+    snprintf(old, sizeof old, "%s.old", self);
+    snprintf(newp, sizeof newp, "%s.new", self);
+    if (exe && n > 100000) {
+        FILE *f = fopen(newp, "wb");
+        if (f) {
+            int written = fwrite(exe, 1, n, f) == n;
+            fclose(f);
+            DeleteFileA(old);                       /* a running exe can be renamed, not overwritten */
+            if (written && MoveFileA(self, old)) {
+                ok = MoveFileA(newp, self);
+                if (!ok) MoveFileA(old, self);
+            }
+        }
+        DeleteFileA(newp);
+    }
+    mz_free(exe);
+    if (!ok) { snprintf(status_msg, sizeof status_msg, "UPDATE FAILED"); return 0; }
+    LOG_INFO("updated to %s, restarting", tag);
+    return 1;
 }
 
 /* ---- drawing ---- */
@@ -375,6 +484,14 @@ static void frame_box(float x0, float y0, float x1, float y1, rgb_t col)
 static rgb_t dim(rgb_t c, float k)
 {
     return MAKE_RGB((int)(RGB_RED(c) * k), (int)(RGB_GREEN(c) * k), (int)(RGB_BLUE(c) * k));
+}
+
+static void button(float cx, float y, const char *label, int on, float pulse)
+{
+    const float w = 300.0f, h = 34.0f;
+    rgb_t c = on ? MAKE_RGB((int)(255 * pulse), (int)(230 * pulse), (int)(50 * pulse)) : MAKE_RGB(40, 60, 200);
+    frame_box(cx - w * 0.5f, y - h * 0.5f, cx + w * 0.5f, y + h * 0.5f, c);
+    vfont_center(cx, y - 7.0f, 2.4f, on ? c : MAKE_RGB(40, 200, 60), label);
 }
 
 static void draw(int sel, double t, float dt)
@@ -419,12 +536,16 @@ static void draw(int sel, double t, float dt)
         vfont_center(cx, y0 + 30.0f, fminf(3.6f, (bw - 40.0f) / (6.0f * (float)strlen(g->title))),
                      i == sel ? C_SEL : dim(C_TEXT, 0.6f), g->title);
     }
-    vfont_center(0.0f, -268.0f, 2.6f, C_DIM, "<  >: CHOOSE    ENTER / FIRE: PLAY    ESC: QUIT");
+    button(-170.0f, -212.0f, "GITHUB PAGE", sel == 2, pulse);
+    button(170.0f, -212.0f, "UPDATE", sel == 3, pulse);
+    if (status_msg[0]) vfont_center(0.0f, -250.0f, 2.2f, C_SEL, status_msg);
+    vfont_center(0.0f, -282.0f, 2.2f, C_DIM, "ARROWS: CHOOSE    ENTER / FIRE: SELECT    ESC: QUIT");
+    vfont_center(470.0f, -282.0f, 2.2f, C_DIM, "V" TRILOGY_VERSION);
     beam_draw_all(beam_proj);
 }
 
 /* ---- input: edges of left / right / play / quit from keys, mouse and sticks ---- */
-enum { IN_LEFT = 1, IN_RIGHT = 2, IN_PLAY = 4, IN_QUIT = 8 };
+enum { IN_LEFT = 1, IN_RIGHT = 2, IN_PLAY = 4, IN_QUIT = 8, IN_UP = 16, IN_DOWN = 32 };
 static char joy_ignore[256];
 
 static int joy_ignored(int d)
@@ -442,31 +563,41 @@ static int joy_ignored(int d)
     return 0;
 }
 
+static int dbg_src;
 static int read_inputs(void)
 {
-    static int mouse_acc;
+    static int mouse_acc, mouse_acc_y;
+    dbg_src = 0;
     int mx, my, s = 0, d, b;
 
     if (key[KEY_LEFT]) s |= IN_LEFT;
     if (key[KEY_RIGHT]) s |= IN_RIGHT;
     if (key[KEY_ENTER] || key[KEY_SPACE] || key[KEY_LCONTROL] || (mouse_b & 1)) s |= IN_PLAY;
     if (key[KEY_ESC]) s |= IN_QUIT;
+    if (key[KEY_UP]) s |= IN_UP;
+    if (key[KEY_DOWN]) s |= IN_DOWN;
     get_mouse_mickeys(&mx, &my);
     mouse_acc += mx;
+    mouse_acc_y += my;
     if (mouse_acc < -60) { s |= IN_LEFT; mouse_acc = 0; }
     if (mouse_acc > 60) { s |= IN_RIGHT; mouse_acc = 0; }
+    if (mouse_acc_y < -60) { s |= IN_UP; mouse_acc_y = 0; }
+    if (mouse_acc_y > 60) { s |= IN_DOWN; mouse_acc_y = 0; }
     poll_joystick();
     for (d = 0; d < num_joysticks; d++) {
         if (!joystick_is_connected(d) || !joystick_has_stick(d) || joy_ignored(d)) continue;
         if (joy[d].stick[0].axis[0].pos < -64) s |= IN_LEFT;
         if (joy[d].stick[0].axis[0].pos > 64) s |= IN_RIGHT;
+        if (joy[d].stick[0].axis[1].pos < -64) s |= IN_UP;
+        if (joy[d].stick[0].axis[1].pos > 64) s |= IN_DOWN;
         for (b = 0; b < joy[d].num_buttons && b < 4; b++)
-            if (joy[d].button[b].b) s |= IN_PLAY;
+            if (joy[d].button[b].b) { s |= IN_PLAY; dbg_src = 100 + d * 10 + b; }
     }
+    if (s & IN_PLAY && !dbg_src) dbg_src = (key[KEY_ENTER] ? 1 : 0) | (key[KEY_SPACE] ? 2 : 0) | (key[KEY_LCONTROL] ? 4 : 0) | ((mouse_b & 1) ? 8 : 0);
     return s;
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
+int selector_main(HINSTANCE hInstance)
 {
     WNDCLASS wc;
     DWORD style = WS_OVERLAPPEDWINDOW;
@@ -475,14 +606,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
     int sel, prev = -1, start_full;
     LARGE_INTEGER freq, t0, now;
     double last = 0.0;
-    (void)hPrev; (void)cmd; (void)show;
 
     GetModuleFileNameA(NULL, exe_dir, sizeof exe_dir);
+    snprintf(path, sizeof path, "%s.old", exe_dir);
+    DeleteFileA(path);                                   /* left by an update */
     slash = strrchr(exe_dir, '\\');
     if (slash) slash[1] = '\0';
     snprintf(path, sizeof path, "%sselection.log", exe_dir);
     log_open(path);
     log_set_level(LOG_LEVEL_INFO);
+    if (!(newer("1.10", "1.2") && !newer("1.0", "1.0") && newer("2.0", "1.9"))) LOG_ERROR("version compare is broken");
     snprintf(path, sizeof path, "%sselection.ini", exe_dir);
     set_config_file(path);
 
@@ -498,6 +631,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
     AdjustWindowRect(&wr, style, FALSE);
     hWnd = CreateWindow(L"StarWarsSelection", L"Star Wars Arcade", style, CW_USEDEFAULT, CW_USEDEFAULT,
                         wr.right - wr.left, wr.bottom - wr.top, NULL, NULL, hInstance, NULL);
+    plat_set_window(hWnd);
     if (!hWnd || !CreateGLContext()) { MessageBoxA(NULL, "No OpenGL window.", "Star Wars Arcade", MB_OK); return 1; }
     SetSwapMode(1);
     if (!beam_init()) { MessageBoxA(NULL, "The beam renderer needs OpenGL 3.3.", "Star Wars Arcade", MB_OK); return 1; }
@@ -539,15 +673,31 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPSTR cmd, int show)
         edge = prev < 0 ? 0 : in & ~prev;        /* nothing held at start (or on return) counts */
         prev = in;
         if (edge & IN_QUIT) break;
-        if (edge & IN_LEFT) sel = 0;
-        if (edge & IN_RIGHT) sel = 1;
+        if (edge & IN_LEFT) sel = sel < 2 ? 0 : 2;          /* 0, 1: the games; 2, 3: the buttons */
+        if (edge & IN_RIGHT) sel = sel < 2 ? 1 : 3;
+        if (edge & IN_DOWN) sel |= 2;
+        if (edge & IN_UP) sel &= 1;
+        if ((edge & IN_PLAY) && sel == 2) { open_github(); continue; }
+        if ((edge & IN_PLAY) && sel == 3) {
+            snprintf(status_msg, sizeof status_msg, "CHECKING FOR UPDATES...");
+            draw(sel, t, 0.0f);
+            glSwap();
+            if (update()) {
+                char self[MAX_PATH];
+                GetModuleFileNameA(NULL, self, sizeof self);
+                run_game(self, "", 0);                      /* the new exe, on the same page */
+                break;
+            }
+            prev = -1;
+            continue;
+        }
         if (edge & IN_PLAY) {
             set_config_int("main", "last", sel);
-            LOG_INFO("playing %s", games[sel].title);
+            LOG_INFO("playing %s (input %d)", games[sel].title, dbg_src);
             music(0);
-            if (is_fullscreen) ToggleFullscreen();
+            if (IsFullscreen()) ToggleFullscreen();
             ShowWindow(hWnd, SW_HIDE);
-            run_game(games[sel].exe, "", INFINITE);
+            { char a[32]; snprintf(a, sizeof a, "--game %s", games[sel].id); run_game(games[sel].exe, a, INFINITE); }
             ShowWindow(hWnd, SW_SHOW);
             SetForegroundWindow(hWnd);
             if (start_full) ToggleFullscreen();
