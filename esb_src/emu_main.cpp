@@ -89,18 +89,15 @@ static void widescreen_patch(void)
     put16(rom_bank2, 0xD9C2 + 1 - 0xA000, 0x02C0);
 
     /* star view cone, bank 1: "SUBD M_XPS" (width test) becomes a call to a
-       routine in the free space at $7F00 that compares with X*1.3125 (~4/3) */
+       routine in the free space at $7F00 that compares with X*2 (as Star
+       Wars' wsstar.c: x4/3 left the outer edges of the wide picture bare) */
     static const uint8_t cone[] = {
         0x34, 0x06,             /* PSHS D          Y                       */
         0xFC, 0x50, 0x70,       /* LDD  $5070      X                       */
-        0x44, 0x56, 0x44, 0x56, /* LSRA RORB x2    X/4                     */
-        0x34, 0x06,             /* PSHS D                                  */
-        0x44, 0x56, 0x44, 0x56, /* LSRA RORB x2    X/16                    */
-        0xE3, 0xE1,             /* ADDD ,S++       X/4 + X/16              */
-        0xF3, 0x50, 0x70,       /* ADDD $5070      X * 1.3125              */
+        0x58, 0x49,             /* ASLB ROLA       X * 2                   */
         0xED, 0xE3,             /* STD  ,--S                               */
         0xEC, 0x62,             /* LDD  2,S        Y                       */
-        0xA3, 0xE1,             /* SUBD ,S++       Y - X*1.3125, C = borrow */
+        0xA3, 0xE1,             /* SUBD ,S++       Y - X*2, C = borrow      */
         0x32, 0x62,             /* LEAS 2,S        (flags kept)            */
         0x39                    /* RTS                                     */
     };
