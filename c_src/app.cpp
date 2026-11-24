@@ -112,7 +112,8 @@ static int load_zip(void)
 }
 
 /* 16:9: the four cockpit guns are VOFF moves in the vector ROM; +-480 -> +-650
- * puts them at the edges of the wider picture (same values set_guns.py writes).
+ * puts them at the edges of the wider picture (same values set_guns.py writes);
+ * the HUD titles are moves in the same ROM and follow.
  * Follows plat_wide, which the options menu can change while the game runs. */
 extern "C" int plat_wide;
 static int guns_wide = -1;
@@ -121,7 +122,11 @@ static void widescreen_guns(void)
 {
     static const struct { uint16_t at, wide, tube; } gun[] = {
         { 0x341C, 0x028A, 0x01E0 }, { 0x34B6, 0x028A, 0x01E0 },
-        { 0x35CE, 0x1D76, 0x1E20 }, { 0x3668, 0x1D76, 0x1E20 } };
+        { 0x35CE, 0x1D76, 0x1E20 }, { 0x3668, 0x1D76, 0x1E20 },
+        /* the "SCORE" and "WAVE" titles (VJTITL, $33E4) move out with the
+           digits (VGHUDL/R in sw_defs.h, 480 -> 650): -408 -> -578, 384 -> 554 */
+        { 0x33E8, 0x1DBE, 0x1E68 }, { 0x33F8, 0x022A, 0x0180 },
+        { 0xEB54, 0x01E4, 0x013A } };       /* "TOWERS" (message $41's X in TMESXY): 314 -> 484 */
     guns_wide = plat_wide;
     for (const auto &g : gun) {
         uint16_t x = plat_wide ? g.wide : g.tube;
