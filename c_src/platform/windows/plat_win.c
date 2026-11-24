@@ -284,6 +284,21 @@ static LONG_PTR windowed_style, windowed_exstyle;
 
 int IsFullscreen(void) { return is_fullscreen; }
 
+/* Windows refuses SetForegroundWindow to a process that is not the foreground one (e.g. the game
+ * started from the selection screen, or the style change of ToggleFullscreen), so the window stayed
+ * visible but unfocused: keys (coins) were ignored until a click. Borrowing the foreground thread's
+ * input queue lifts the restriction. */
+static void grab_focus(void)
+{
+    HWND fg = GetForegroundWindow();
+    DWORD me = GetCurrentThreadId();
+    DWORD ft = fg ? GetWindowThreadProcessId(fg, NULL) : 0;
+    if (ft && ft != me) AttachThreadInput(me, ft, TRUE);
+    SetForegroundWindow(hWnd);
+    SetFocus(hWnd);
+    if (ft && ft != me) AttachThreadInput(me, ft, FALSE);
+}
+
 void ToggleFullscreen(void)
 {
     if (is_fullscreen) {
@@ -302,10 +317,11 @@ void ToggleFullscreen(void)
         SetWindowLongPtr(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
         SetWindowLongPtr(hWnd, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_TOPMOST);
         SetWindowPos(hWnd, HWND_TOPMOST, mi.rcMonitor.left, mi.rcMonitor.top,
-                     mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
-                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                     mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top + 1,
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);   /* shortcut: +1 px so Windows/the GPU driver don't promote it to exclusive fullscreen (OBS window capture, Alt+Tab); drop if it ever shows a seam */
         is_fullscreen = 1;
     }
+    grab_focus();
 }
 
 /* ---- beam width: [vector] linewidth = pixels at the default 960-wide window,
@@ -723,9 +739,9 @@ static int plat_init(void)
     if (!turbo && !hidden_mode) {
         { char t[400]; snprintf(t, sizeof t, "%s - %s", APP_NAME, KEY_HELP); set_window_title(t); }
         ShowWindow(hWnd, SW_SHOW);
-        SetForegroundWindow(hWnd);
-        window_active = GetForegroundWindow() == hWnd;
+        grab_focus();
         if (start_fullscreen && !is_fullscreen) ToggleFullscreen();
+        window_active = GetForegroundWindow() == hWnd;
         apply_capture();
         menu_active = 1;                /* vector options over the attract mode */
     }

@@ -314,7 +314,7 @@ static void load_games(void)
 }
 
 /* ---- GitHub page and update ---- */
-#define TRILOGY_VERSION "1.8"
+#define TRILOGY_VERSION "1.9"
 #ifndef REPO
 #define REPO            "zerdarker/ATARI-STAR-WARS-Arcade-RECOMP-edition"
 #endif
